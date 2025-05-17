@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { verifyAuth } from "@hono/auth-js";
 
 import { unsplash } from "@/lib/unsplash";
+import { db } from "@/db/drizzle";
 
 const DEFAULT_COUNT = 50;
 const DEFAULT_COLLECTION_IDS = ["317099"];

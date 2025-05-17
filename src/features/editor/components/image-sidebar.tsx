@@ -72,7 +72,7 @@ export const ImageSidebar = ({
         <div className="p-4">
           <div className="grid grid-cols-2 gap-4">
             {data &&
-              data.map((image) => {
+              data?.map((image) => {
                 return (
                   <button
                     onClick={() => editor?.addImage(image.urls.regular)}
