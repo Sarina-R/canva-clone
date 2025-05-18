@@ -60,7 +60,7 @@ export const fonts = [
   "Lucida Console",
 ];
 
-export const selectionDependentTools = [
+export const selectionDependentTools: ActiveTool[] = [
   "fill",
   "font",
   "filter",
@@ -107,7 +107,8 @@ export type ActiveTool =
   | "settings"
   | "ai"
   | "remove-bg"
-  | "templates";
+  | "templates"
+  | "dynamic-text";
 
 export const FILL_COLOR = "rgba(0,0,0,1)";
 export const STROKE_COLOR = "rgba(0,0,0,1)";

@@ -27,6 +27,7 @@ import { AiSidebar } from "@/features/editor/components/ai-sidebar";
 import { TemplateSidebar } from "@/features/editor/components/template-sidebar";
 import { RemoveBgSidebar } from "@/features/editor/components/remove-bg-sidebar";
 import { SettingsSidebar } from "@/features/editor/components/settings-sidebar";
+import { DynamicTextSidebar } from "@/features/editor/components/dynamic-text-sidebar";
 
 interface EditorProps {
   initialData: ResponseType["data"];
@@ -35,7 +36,6 @@ interface EditorProps {
 export const Editor = ({ initialData }: EditorProps) => {
   const { mutate } = useUpdateProject(initialData.id);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedSave = useCallback(
     debounce((values: { json: string; height: number; width: number }) => {
       mutate(values);
@@ -176,6 +176,11 @@ export const Editor = ({ initialData }: EditorProps) => {
           onChangeActiveTool={onChangeActiveTool}
         />
         <SettingsSidebar
+          editor={editor}
+          activeTool={activeTool}
+          onChangeActiveTool={onChangeActiveTool}
+        />
+        <DynamicTextSidebar
           editor={editor}
           activeTool={activeTool}
           onChangeActiveTool={onChangeActiveTool}

@@ -8,6 +8,7 @@ import {
   Shapes,
   Sparkles,
   Type,
+  Database, // Added Database icon
 } from "lucide-react";
 
 import { ActiveTool } from "@/features/editor/types";
@@ -57,6 +58,12 @@ export const Sidebar = ({ activeTool, onChangeActiveTool }: SidebarProps) => {
           label="AI"
           isActive={activeTool === "ai"}
           onClick={() => onChangeActiveTool("ai")}
+        />
+        <SidebarItem
+          icon={Database}
+          label="Dynamic"
+          isActive={activeTool === "dynamic-text"}
+          onClick={() => onChangeActiveTool("dynamic-text")}
         />
         <SidebarItem
           icon={Settings}
