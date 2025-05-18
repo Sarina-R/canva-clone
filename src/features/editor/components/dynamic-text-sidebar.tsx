@@ -85,6 +85,8 @@ export const DynamicTextSidebar = ({
         ...prev,
         [newSourceId]: {
           endpoint: newSourceUrl,
+          method: newSourceMethod,
+          headers,
           data,
           timestamp: new Date().toISOString(),
         },
@@ -140,16 +142,17 @@ export const DynamicTextSidebar = ({
     if (!data) return;
 
     const getValueByPath = (obj: any, path: string, index: number) => {
-      const normalizedPath = path.replace(/\[(\d+)\]/g, ".$1");
-      const parts = normalizedPath.split(".");
       let current = obj;
-
+      const parts = path.split(/[.[]/).map((part) => part.replace(/\]$/, ""));
       for (let i = 0; i < parts.length; i++) {
         const part = parts[i];
-        if (Array.isArray(current) && !isNaN(Number(part))) {
-          current = current[Number(part)];
-        } else if (Array.isArray(current)) {
-          current = current[index]?.[part];
+        if (part === "") continue;
+        if (Array.isArray(current)) {
+          if (!isNaN(Number(part))) {
+            current = current[Number(part)];
+          } else {
+            current = current[index]?.[part];
+          }
         } else {
           current = current[part];
         }
