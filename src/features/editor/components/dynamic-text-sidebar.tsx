@@ -8,8 +8,12 @@ import {
   ChevronRight,
   ChevronDown,
 } from "lucide-react";
-import { ActiveTool } from "@/features/editor/types";
-import { useEditor } from "@/features/editor/hooks/use-editor";
+import { ActiveTool, Editor } from "@/features/editor/types";
+import { ToolSidebarHeader } from "@/features/editor/components/tool-sidebar-header";
+import { ToolSidebarClose } from "@/features/editor/components/tool-sidebar-close";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type FieldNode = {
   path: string;
@@ -21,7 +25,7 @@ type FieldNode = {
 };
 
 interface DynamicTextSidebarProps {
-  editor: any;
+  editor: Editor | undefined;
   activeTool: ActiveTool;
   onChangeActiveTool: (tool: ActiveTool) => void;
 }
@@ -158,10 +162,7 @@ export const DynamicTextSidebar = ({
 
     const value = getValueByPath(data, selectedField, itemIndex);
 
-    const text = new editor.canvas.fabric.Textbox(value, {
-      left: 100,
-      top: 100,
-      width: 200,
+    editor.addText(value, {
       fontSize: 20,
       fontFamily: "Arial",
       fill: "#000000",
@@ -170,10 +171,6 @@ export const DynamicTextSidebar = ({
       itemIndex,
       isDynamic: true,
     });
-
-    editor.canvas.add(text);
-    editor.canvas.setActiveObject(text);
-    editor.canvas.renderAll();
 
     onChangeActiveTool("select");
   };
@@ -281,22 +278,18 @@ export const DynamicTextSidebar = ({
     const isSelected = selectedField === node.path;
 
     return (
-      <div key={node.path} style={{ marginBottom: "4px" }}>
+      <div key={node.path} className="mb-1">
         <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            padding: "4px",
-            cursor: "pointer",
-            backgroundColor: isSelected ? "#f0f0f0" : "transparent",
-            borderRadius: "4px",
-          }}
+          className={cn(
+            "flex cursor-pointer items-center rounded-sm p-2 hover:bg-gray-100",
+            isSelected && "bg-gray-100 font-medium",
+          )}
           onClick={() => {
             setSelectedField(node.path);
             setItemIndex(0);
           }}
         >
-          <div style={{ width: "16px" }}>
+          <div className="w-4">
             {hasChildren && (
               <button
                 onClick={(e) => {
@@ -311,44 +304,26 @@ export const DynamicTextSidebar = ({
                     return newSet;
                   });
                 }}
-                style={{
-                  background: "none",
-                  border: "none",
-                  padding: "0",
-                  cursor: "pointer",
-                }}
+                className="flex h-4 w-4 items-center justify-center"
               >
                 {isExpanded ? (
-                  <ChevronDown size={12} />
+                  <ChevronDown className="h-3 w-3" />
                 ) : (
-                  <ChevronRight size={12} />
+                  <ChevronRight className="h-3 w-3" />
                 )}
               </button>
             )}
           </div>
-          <div
-            style={{
-              marginLeft: "4px",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            <span style={{ fontWeight: "500" }}>{node.label}:</span>{" "}
+          <div className="ml-1 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
+            <span className="mr-1 font-medium">{node.label}:</span>
             {!hasChildren && (
-              <span style={{ color: "#666" }}>{node.value || node.type}</span>
+              <span className="text-gray-500">{node.value || node.type}</span>
             )}
-            {hasChildren && <span style={{ color: "#666" }}>{node.type}</span>}
+            {hasChildren && <span className="text-gray-500">{node.type}</span>}
           </div>
         </div>
         {hasChildren && isExpanded && (
-          <div
-            style={{
-              marginLeft: "16px",
-              borderLeft: "1px solid #ddd",
-              paddingLeft: "8px",
-            }}
-          >
+          <div className="ml-4 border-l pl-2">
             {node.children!.map((childNode) => renderFieldNode(childNode))}
           </div>
         )}
@@ -404,127 +379,133 @@ export const DynamicTextSidebar = ({
     return 0;
   };
 
+  const onClose = () => {
+    onChangeActiveTool("select");
+  };
+
   return (
     <aside
-      className={`fixed z-20 flex h-full w-[360px] flex-col border-r bg-white ${
-        activeTool === "dynamic-text"
-          ? "left-[100px] translate-x-0"
-          : "-translate-x-full"
-      }`}
+      className={cn(
+        "relative z-[40] flex h-full w-[360px] flex-col border-r bg-white",
+        activeTool === "dynamic-text" ? "visible" : "hidden",
+      )}
     >
-      <div className="p-6">
-        <h3 className="text-lg font-semibold">Dynamic Text</h3>
-        {Object.keys(dataSources).length === 0 ? (
-          <div className="mt-4 flex flex-col items-center justify-center rounded-md border border-dashed p-8 text-center">
-            <Database className="mb-2 h-8 w-8 text-gray-400" />
-            <h4 className="mb-1 text-sm font-medium">No data sources</h4>
-            <p className="text-xs text-gray-500">
-              Add a data source to create dynamic content
-            </p>
-          </div>
-        ) : (
-          <div className="mt-4">
-            <button
-              onClick={() => setShowAddDialog(true)}
-              className="mb-4 flex items-center rounded-md bg-blue-500 px-4 py-2 text-sm text-white hover:bg-blue-600"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Add Data Source
-            </button>
-            <div className="mb-4">
-              <label
-                htmlFor="select-source"
-                className="mb-1 block text-sm font-medium"
-              >
-                Select Data Source
-              </label>
-              <select
-                id="select-source"
-                value={selectedSource || ""}
-                onChange={(e) => handleSourceSelect(e.target.value)}
-                className="w-full rounded-md border border-gray-300 p-2 text-sm"
-              >
-                <option value="" disabled>
-                  Choose a data source
-                </option>
-                {Object.keys(dataSources).map((sourceId) => (
-                  <option key={sourceId} value={sourceId}>
-                    {sourceId}
-                  </option>
-                ))}
-              </select>
+      <ToolSidebarHeader
+        title="Dynamic Text"
+        description="Add dynamic text from API data"
+      />
+      <ScrollArea>
+        <div className="space-y-6 p-4">
+          {Object.keys(dataSources).length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-md border border-dashed p-8 text-center">
+              <Database className="mb-2 h-8 w-8 text-gray-400" />
+              <h4 className="mb-1 text-sm font-medium">No data sources</h4>
+              <p className="text-xs text-gray-500">
+                Add a data source to create dynamic content
+              </p>
             </div>
-            {selectedSource && (
-              <>
-                <div className="mb-4 text-xs text-gray-500">
-                  <div>Endpoint: {dataSources[selectedSource].endpoint}</div>
+          ) : (
+            <>
+              <Button className="" onClick={() => setShowAddDialog(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Data Source
+              </Button>
+              <div>
+                <label
+                  htmlFor="select-source"
+                  className="mb-1 block text-sm font-medium"
+                >
+                  Select Data Source
+                </label>
+                <select
+                  id="select-source"
+                  value={selectedSource || ""}
+                  onChange={(e) => handleSourceSelect(e.target.value)}
+                  className="rounded-md border border-gray-300 p-2 text-sm"
+                >
+                  <option value="" disabled>
+                    Choose a data source
+                  </option>
+                  {Object.keys(dataSources).map((sourceId) => (
+                    <option key={sourceId} value={sourceId}>
+                      {sourceId}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {selectedSource && (
+                <>
+                  <div className="text-xs text-gray-500">
+                    <div>Endpoint: {dataSources[selectedSource].endpoint}</div>
+                    <div>
+                      Updated:{" "}
+                      {formatTimestamp(dataSources[selectedSource].timestamp)}
+                    </div>
+                  </div>
                   <div>
-                    Updated:{" "}
-                    {formatTimestamp(dataSources[selectedSource].timestamp)}
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-sm font-medium">Fields</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRefreshSource(selectedSource)}
+                      >
+                        <RefreshCw className="mr-1 h-3 w-3" />
+                        Refresh
+                      </Button>
+                    </div>
+                    <div className="max-h-60 max-w-[300px] overflow-auto rounded-md border p-2">
+                      {fieldTree.map((node) => renderFieldNode(node))}
+                    </div>
                   </div>
-                </div>
-                <div className="mb-4">
-                  <div className="mb-2 flex justify-between">
-                    <span className="text-sm font-medium">Fields</span>
-                    <button
-                      onClick={() => handleRefreshSource(selectedSource)}
-                      className="flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs hover:bg-gray-200"
-                    >
-                      <RefreshCw className="mr-1 h-3 w-3" />
-                      Refresh
-                    </button>
-                  </div>
-                  <div className="max-h-60 overflow-y-auto rounded-md border p-2">
-                    {fieldTree.map((node) => renderFieldNode(node))}
-                  </div>
-                </div>
-                {selectedField && (
-                  <div className="rounded-md border p-4">
-                    <h4 className="mb-2 text-sm font-medium">
-                      Add Dynamic Text
-                    </h4>
-                    <p className="mb-2 text-xs text-gray-500">
-                      {selectedSource} → {selectedField}
-                    </p>
-                    {getArrayItemCount() > 0 && (
-                      <div className="mb-2">
-                        <label
-                          htmlFor="item-index"
-                          className="mb-1 block text-xs font-medium"
-                        >
-                          Item Index
-                        </label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            id="item-index"
-                            type="number"
-                            min="0"
-                            max={getArrayItemCount() - 1}
-                            value={itemIndex}
-                            onChange={(e) =>
-                              setItemIndex(Number.parseInt(e.target.value) || 0)
-                            }
-                            className="w-20 rounded-md border border-gray-300 p-1 text-sm"
-                          />
-                          <span className="text-xs text-gray-500">
-                            of {getArrayItemCount() - 1}
-                          </span>
+                  {selectedField && (
+                    <div className="rounded-md border p-4">
+                      <h4 className="mb-2 text-sm font-medium">
+                        Add Dynamic Text
+                      </h4>
+                      <p className="mb-2 text-xs text-gray-500">
+                        {selectedSource} → {selectedField}
+                      </p>
+                      {getArrayItemCount() > 0 && (
+                        <div className="mb-4">
+                          <label
+                            htmlFor="item-index"
+                            className="mb-1 block text-xs font-medium"
+                          >
+                            Item Index
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              id="item-index"
+                              type="number"
+                              min="0"
+                              max={getArrayItemCount() - 1}
+                              value={itemIndex}
+                              onChange={(e) =>
+                                setItemIndex(
+                                  Number.parseInt(e.target.value) || 0,
+                                )
+                              }
+                              className="w-20 rounded-md border border-gray-300 p-1 text-sm"
+                            />
+                            <span className="text-xs text-gray-500">
+                              of {getArrayItemCount() - 1}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                    <button
-                      onClick={handleAddDynamicText}
-                      className="w-full rounded-md bg-blue-500 px-4 py-2 text-sm text-white hover:bg-blue-600"
-                    >
-                      Add to Canvas
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        )}
-      </div>
+                      )}
+                      <Button className="" onClick={handleAddDynamicText}>
+                        Add to Canvas
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          )}
+        </div>
+      </ScrollArea>
+      <ToolSidebarClose onClick={onClose} />
       {showAddDialog && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
           <div className="w-96 rounded-md bg-white p-6">
@@ -542,7 +523,7 @@ export const DynamicTextSidebar = ({
                   value={newSourceId}
                   onChange={(e) => setNewSourceId(e.target.value)}
                   placeholder="products"
-                  className="w-full rounded-md border border-gray-300 p-2 text-sm"
+                  className="rounded-md border border-gray-300 p-2 text-sm"
                 />
               </div>
               <div className="mb-4">
@@ -557,7 +538,7 @@ export const DynamicTextSidebar = ({
                   value={newSourceUrl}
                   onChange={(e) => setNewSourceUrl(e.target.value)}
                   placeholder="https://api.example.com/data"
-                  className="w-full rounded-md border border-gray-300 p-2 text-sm"
+                  className="rounded-md border border-gray-300 p-2 text-sm"
                 />
               </div>
               <div className="mb-4">
@@ -571,7 +552,7 @@ export const DynamicTextSidebar = ({
                   id="source-method"
                   value={newSourceMethod}
                   onChange={(e) => setNewSourceMethod(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 p-2 text-sm"
+                  className="rounded-md border border-gray-300 p-2 text-sm"
                 >
                   <option value="GET">GET</option>
                   <option value="POST">POST</option>
@@ -590,23 +571,17 @@ export const DynamicTextSidebar = ({
                   value={newSourceHeaders}
                   onChange={(e) => setNewSourceHeaders(e.target.value)}
                   placeholder='{"Authorization": "Bearer token"}'
-                  className="w-full rounded-md border border-gray-300 p-2 text-sm"
+                  className="rounded-md border border-gray-300 p-2 text-sm"
                 />
               </div>
               <div className="flex justify-end gap-2">
-                <button
-                  type="button"
+                <Button
+                  variant="outline"
                   onClick={() => setShowAddDialog(false)}
-                  className="rounded-md bg-gray-200 px-4 py-2 text-sm hover:bg-gray-300"
                 >
                   Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="rounded-md bg-blue-500 px-4 py-2 text-sm text-white hover:bg-blue-600"
-                >
-                  Add Data Source
-                </button>
+                </Button>
+                <Button type="submit">Add Data Source</Button>
               </div>
             </form>
           </div>

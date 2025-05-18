@@ -8,7 +8,7 @@ import {
   Shapes,
   Sparkles,
   Type,
-  Database, // Added Database icon
+  Database,
 } from "lucide-react";
 
 import { ActiveTool } from "@/features/editor/types";
