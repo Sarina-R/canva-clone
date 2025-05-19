@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { CiFileOn } from "react-icons/ci";
 import { BsCloudCheck, BsCloudSlash } from "react-icons/bs";
 import { useFilePicker } from "use-file-picker";
@@ -11,13 +12,13 @@ import {
   MousePointerClick,
   Redo2,
   Undo2,
+  FileText,
 } from "lucide-react";
 
 import { UserButton } from "@/features/auth/components/user-button";
-
+import { ExportDialog } from "@/features/editor/components/export-dialog";
 import { ActiveTool, Editor } from "@/features/editor/types";
 import { Logo } from "@/features/editor/components/logo";
-
 import { cn } from "@/lib/utils";
 import { Hint } from "@/components/hint";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useDataSources } from "@/features/editor/context/data-source-context";
 
 interface NavbarProps {
   id: string;
@@ -42,6 +44,9 @@ export const Navbar = ({
   activeTool,
   onChangeActiveTool,
 }: NavbarProps) => {
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const { dataSources } = useDataSources();
+
   const data = useMutationState({
     filters: {
       mutationKey: ["project", { id }],
@@ -51,7 +56,6 @@ export const Navbar = ({
   });
 
   const currentStatus = data[data.length - 1];
-
   const isError = currentStatus === "error";
   const isPending = currentStatus === "pending";
 
@@ -70,143 +74,166 @@ export const Navbar = ({
   });
 
   return (
-    <nav className="flex h-[68px] w-full items-center gap-x-8 border-b p-4 lg:pl-[34px]">
-      <Logo />
-      <div className="flex h-full w-full items-center gap-x-1">
-        <DropdownMenu modal={false}>
-          <DropdownMenuTrigger asChild>
-            <Button size="sm" variant="ghost">
-              File
-              <ChevronDown className="ml-2 size-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="min-w-60">
-            <DropdownMenuItem
-              onClick={() => openFilePicker()}
-              className="flex items-center gap-x-2"
-            >
-              <CiFileOn className="size-8" />
-              <div>
-                <p>Open</p>
-                <p className="text-xs text-muted-foreground">
-                  Open a JSON file
-                </p>
-              </div>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <Separator orientation="vertical" className="mx-2" />
-        <Hint label="Select" side="bottom" sideOffset={10}>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => onChangeActiveTool("select")}
-            className={cn(activeTool === "select" && "bg-gray-100")}
-          >
-            <MousePointerClick className="size-4" />
-          </Button>
-        </Hint>
-        <Hint label="Undo" side="bottom" sideOffset={10}>
-          <Button
-            disabled={!editor?.canUndo()}
-            variant="ghost"
-            size="icon"
-            onClick={() => editor?.onUndo()}
-          >
-            <Undo2 className="size-4" />
-          </Button>
-        </Hint>
-        <Hint label="Redo" side="bottom" sideOffset={10}>
-          <Button
-            disabled={!editor?.canRedo()}
-            variant="ghost"
-            size="icon"
-            onClick={() => editor?.onRedo()}
-          >
-            <Redo2 className="size-4" />
-          </Button>
-        </Hint>
-        <Separator orientation="vertical" className="mx-2" />
-        {isPending && (
-          <div className="flex items-center gap-x-2">
-            <Loader className="size-4 animate-spin text-muted-foreground" />
-            <div className="text-xs text-muted-foreground">Saving...</div>
-          </div>
-        )}
-        {!isPending && isError && (
-          <div className="flex items-center gap-x-2">
-            <BsCloudSlash className="size-[20px] text-muted-foreground" />
-            <div className="text-xs text-muted-foreground">Failed to save</div>
-          </div>
-        )}
-        {!isPending && !isError && (
-          <div className="flex items-center gap-x-2">
-            <BsCloudCheck className="size-[20px] text-muted-foreground" />
-            <div className="text-xs text-muted-foreground">Saved</div>
-          </div>
-        )}
-        <div className="ml-auto flex items-center gap-x-4">
+    <>
+      <nav className="flex h-[68px] w-full items-center gap-x-8 border-b p-4 lg:pl-[34px]">
+        <Logo />
+        <div className="flex h-full w-full items-center gap-x-1">
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
               <Button size="sm" variant="ghost">
-                Export
-                <Download className="ml-4 size-4" />
+                File
+                <ChevronDown className="ml-2 size-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-60">
+            <DropdownMenuContent align="start" className="min-w-60">
               <DropdownMenuItem
+                onClick={() => openFilePicker()}
                 className="flex items-center gap-x-2"
-                onClick={() => editor?.saveJson()}
               >
                 <CiFileOn className="size-8" />
                 <div>
-                  <p>JSON</p>
+                  <p>Open</p>
                   <p className="text-xs text-muted-foreground">
-                    Save for later editing
-                  </p>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="flex items-center gap-x-2"
-                onClick={() => editor?.savePng()}
-              >
-                <CiFileOn className="size-8" />
-                <div>
-                  <p>PNG</p>
-                  <p className="text-xs text-muted-foreground">
-                    Best for sharing on the web
-                  </p>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="flex items-center gap-x-2"
-                onClick={() => editor?.saveJpg()}
-              >
-                <CiFileOn className="size-8" />
-                <div>
-                  <p>JPG</p>
-                  <p className="text-xs text-muted-foreground">
-                    Best for printing
-                  </p>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="flex items-center gap-x-2"
-                onClick={() => editor?.saveSvg()}
-              >
-                <CiFileOn className="size-8" />
-                <div>
-                  <p>SVG</p>
-                  <p className="text-xs text-muted-foreground">
-                    Best for editing in vector software
+                    Open a JSON file
                   </p>
                 </div>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <UserButton />
+          <Separator orientation="vertical" className="mx-2" />
+          <Hint label="Select" side="bottom" sideOffset={10}>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onChangeActiveTool("select")}
+              className={cn(activeTool === "select" && "bg-gray-100")}
+            >
+              <MousePointerClick className="size-4" />
+            </Button>
+          </Hint>
+          <Hint label="Undo" side="bottom" sideOffset={10}>
+            <Button
+              disabled={!editor?.canUndo()}
+              variant="ghost"
+              size="icon"
+              onClick={() => editor?.onUndo()}
+            >
+              <Undo2 className="size-4" />
+            </Button>
+          </Hint>
+          <Hint label="Redo" side="bottom" sideOffset={10}>
+            <Button
+              disabled={!editor?.canRedo()}
+              variant="ghost"
+              size="icon"
+              onClick={() => editor?.onRedo()}
+            >
+              <Redo2 className="size-4" />
+            </Button>
+          </Hint>
+          <Separator orientation="vertical" className="mx-2" />
+          {isPending && (
+            <div className="flex items-center gap-x-2">
+              <Loader className="size-4 animate-spin text-muted-foreground" />
+              <div className="text-xs text-muted-foreground">Saving...</div>
+            </div>
+          )}
+          {!isPending && isError && (
+            <div className="flex items-center gap-x-2">
+              <BsCloudSlash className="size-[20px] text-muted-foreground" />
+              <div className="text-xs text-muted-foreground">
+                Failed to save
+              </div>
+            </div>
+          )}
+          {!isPending && !isError && (
+            <div className="flex items-center gap-x-2">
+              <BsCloudCheck className="size-[20px] text-muted-foreground" />
+              <div className="text-xs text-muted-foreground">Saved</div>
+            </div>
+          )}
+          <div className="ml-auto flex items-center gap-x-4">
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="ghost">
+                  Export
+                  <Download className="ml-4 size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-60">
+                <DropdownMenuItem
+                  className="flex items-center gap-x-2"
+                  onClick={() => editor?.saveJson()}
+                >
+                  <CiFileOn className="size-8" />
+                  <div>
+                    <p>JSON</p>
+                    <p className="text-xs text-muted-foreground">
+                      Save for later editing
+                    </p>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="flex items-center gap-x-2"
+                  onClick={() => editor?.savePng()}
+                >
+                  <CiFileOn className="size-8" />
+                  <div>
+                    <p>PNG</p>
+                    <p className="text-xs text-muted-foreground">
+                      Best for sharing on the web
+                    </p>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="flex items-center gap-x-2"
+                  onClick={() => editor?.saveJpg()}
+                >
+                  <CiFileOn className="size-8" />
+                  <div>
+                    <p>JPG</p>
+                    <p className="text-xs text-muted-foreground">
+                      Best for printing
+                    </p>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="flex items-center gap-x-2"
+                  onClick={() => editor?.saveSvg()}
+                >
+                  <CiFileOn className="size-8" />
+                  <div>
+                    <p>SVG</p>
+                    <p className="text-xs text-muted-foreground">
+                      Best for editing in vector software
+                    </p>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="flex items-center gap-x-2"
+                  onClick={() => setShowExportDialog(true)}
+                >
+                  <FileText className="size-8" />
+                  <div>
+                    <p>Dynamic PDF</p>
+                    <p className="text-xs text-muted-foreground">
+                      Multi-page PDF with dynamic text
+                    </p>
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <UserButton />
+          </div>
         </div>
-      </div>
-    </nav>
+      </nav>
+      {showExportDialog && (
+        <ExportDialog
+          editor={editor}
+          dataSources={dataSources}
+          onClose={() => setShowExportDialog(false)}
+        />
+      )}
+    </>
   );
 };

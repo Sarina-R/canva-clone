@@ -243,6 +243,12 @@ export interface Editor {
   changeFontFamily: (value: string) => void;
   addText: (value: string, options?: ITextboxOptions) => void;
   getActiveOpacity: () => number;
+  updateDynamicText: (
+    dataSourceId: string,
+    fieldPath: string,
+    itemIndex: number,
+    sourceData: any,
+  ) => void;
   changeOpacity: (value: number) => void;
   bringForward: () => void;
   sendBackwards: () => void;

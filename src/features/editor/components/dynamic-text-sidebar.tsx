@@ -13,7 +13,16 @@ import { ToolSidebarHeader } from "@/features/editor/components/tool-sidebar-hea
 import { ToolSidebarClose } from "@/features/editor/components/tool-sidebar-close";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { useDataSources } from "@/features/editor/context/data-source-context";
 
 type FieldNode = {
   path: string;
@@ -35,9 +44,7 @@ export const DynamicTextSidebar = ({
   activeTool,
   onChangeActiveTool,
 }: DynamicTextSidebarProps) => {
-  const [dataSources, setDataSources] = useState<
-    Record<string, { endpoint: string; data: any; timestamp: string }>
-  >({});
+  const { dataSources, setDataSources } = useDataSources();
   const [newSourceId, setNewSourceId] = useState("");
   const [newSourceUrl, setNewSourceUrl] = useState("");
   const [newSourceMethod, setNewSourceMethod] = useState("GET");
@@ -65,7 +72,7 @@ export const DynamicTextSidebar = ({
     if (!newSourceId || !newSourceUrl) return;
 
     try {
-      let headers = {};
+      let headers: Record<string, string> = {};
       if (newSourceHeaders.trim()) {
         headers = JSON.parse(newSourceHeaders);
       }
@@ -81,8 +88,8 @@ export const DynamicTextSidebar = ({
 
       const data = await response.json();
 
-      setDataSources((prev) => ({
-        ...prev,
+      setDataSources({
+        ...dataSources,
         [newSourceId]: {
           endpoint: newSourceUrl,
           method: newSourceMethod,
@@ -90,7 +97,7 @@ export const DynamicTextSidebar = ({
           data,
           timestamp: new Date().toISOString(),
         },
-      }));
+      });
 
       setNewSourceId("");
       setNewSourceUrl("");
@@ -110,8 +117,8 @@ export const DynamicTextSidebar = ({
 
     try {
       const response = await fetch(source.endpoint, {
-        method: source.method || "GET",
-        headers: source.headers || {},
+        method: source.method,
+        headers: source.headers,
       });
 
       if (!response.ok) {
@@ -120,18 +127,43 @@ export const DynamicTextSidebar = ({
 
       const data = await response.json();
 
-      setDataSources((prev) => ({
-        ...prev,
+      setDataSources({
+        ...dataSources,
         [sourceId]: {
-          ...prev[sourceId],
+          ...dataSources[sourceId],
           data,
           timestamp: new Date().toISOString(),
         },
-      }));
+      });
     } catch (error) {
       console.error("Error refreshing data source:", error);
       alert(`Failed to refresh data from ${source.endpoint}`);
     }
+  };
+
+  // Get value by path
+  const getValueByPath = (obj: any, path: string, index: number) => {
+    let current = obj;
+    const parts = path
+      .split(/[.[]/)
+      .map((part) => part.replace(/\]$/, ""))
+      .filter((part) => part !== "");
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      if (Array.isArray(current)) {
+        if (!isNaN(Number(part))) {
+          current = current[Number(part)];
+        } else {
+          current = current[index]?.[part];
+        }
+      } else {
+        current = current[part];
+      }
+      if (current === undefined || current === null) {
+        return "N/A";
+      }
+    }
+    return current.toString();
   };
 
   // Add dynamic text to canvas
@@ -141,39 +173,22 @@ export const DynamicTextSidebar = ({
     const data = dataSources[selectedSource]?.data;
     if (!data) return;
 
-    const getValueByPath = (obj: any, path: string, index: number) => {
-      let current = obj;
-      const parts = path.split(/[.[]/).map((part) => part.replace(/\]$/, ""));
-      for (let i = 0; i < parts.length; i++) {
-        const part = parts[i];
-        if (part === "") continue;
-        if (Array.isArray(current)) {
-          if (!isNaN(Number(part))) {
-            current = current[Number(part)];
-          } else {
-            current = current[index]?.[part];
-          }
-        } else {
-          current = current[part];
-        }
-        if (current === undefined || current === null) {
-          return "N/A";
-        }
-      }
-      return current.toString();
-    };
-
     const value = getValueByPath(data, selectedField, itemIndex);
 
     editor.addText(value, {
       fontSize: 20,
       fontFamily: "Arial",
       fill: "#000000",
-      dataSourceId: selectedSource,
-      fieldPath: selectedField,
-      itemIndex,
-      isDynamic: true,
     });
+
+    const activeObject = editor.canvas.getActiveObject();
+    if (activeObject) {
+      activeObject.set("dataSourceId", selectedSource);
+      activeObject.set("fieldPath", selectedField);
+      activeObject.set("itemIndex", itemIndex);
+      activeObject.set("isDynamic", true);
+      editor.canvas.renderAll();
+    }
 
     onChangeActiveTool("select");
   };
@@ -185,19 +200,11 @@ export const DynamicTextSidebar = ({
     }
 
     if (Array.isArray(data)) {
-      if (data.length === 0) {
-        return [
-          {
-            path: basePath,
-            label: basePath.split(".").pop() || "array",
-            type: "array",
-            children: [],
-            value: "[]",
-          },
-        ];
-      }
-
-      if (typeof data[0] !== "object" || data[0] === null) {
+      if (data.length > 0 && typeof data[0] === "object" && data[0] !== null) {
+        // For arrays of objects, build tree for the first item
+        return buildFieldTree(data[0], basePath);
+      } else {
+        // For empty arrays or arrays of primitives
         return [
           {
             path: basePath,
@@ -207,18 +214,6 @@ export const DynamicTextSidebar = ({
           },
         ];
       }
-
-      const arrayNode: FieldNode = {
-        path: basePath,
-        label: basePath.split(".").pop() || "array",
-        type: "array",
-        children: [],
-      };
-
-      const sampleItemPath = basePath ? `${basePath}[0]` : "[0]";
-      arrayNode.children = buildFieldTree(data[0], sampleItemPath);
-
-      return [arrayNode];
     }
 
     if (typeof data === "object") {
@@ -236,6 +231,7 @@ export const DynamicTextSidebar = ({
         }
 
         if (Array.isArray(value)) {
+          // For arrays, recursively build tree
           return {
             path,
             label: key,
@@ -246,6 +242,7 @@ export const DynamicTextSidebar = ({
         }
 
         if (valueType === "object") {
+          // For objects, recursively build tree
           return {
             path,
             label: key,
@@ -264,6 +261,7 @@ export const DynamicTextSidebar = ({
       });
     }
 
+    // For primitive values
     return [
       {
         path: basePath,
@@ -285,7 +283,7 @@ export const DynamicTextSidebar = ({
         <div
           className={cn(
             "flex cursor-pointer items-center rounded-sm p-2 hover:bg-gray-100",
-            isSelected && "bg-gray-100 font-medium",
+            isSelected && "bg-gray-200 font-medium",
           )}
           onClick={() => {
             setSelectedField(node.path);
@@ -409,7 +407,7 @@ export const DynamicTextSidebar = ({
             </div>
           ) : (
             <>
-              <Button className="" onClick={() => setShowAddDialog(true)}>
+              <Button className="w-full" onClick={() => setShowAddDialog(true)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add Data Source
               </Button>
@@ -420,21 +418,21 @@ export const DynamicTextSidebar = ({
                 >
                   Select Data Source
                 </label>
-                <select
-                  id="select-source"
+                <Select
                   value={selectedSource || ""}
-                  onChange={(e) => handleSourceSelect(e.target.value)}
-                  className="rounded-md border border-gray-300 p-2 text-sm"
+                  onValueChange={handleSourceSelect}
                 >
-                  <option value="" disabled>
-                    Choose a data source
-                  </option>
-                  {Object.keys(dataSources).map((sourceId) => (
-                    <option key={sourceId} value={sourceId}>
-                      {sourceId}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger id="select-source">
+                    <SelectValue placeholder="Choose a data source" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.keys(dataSources).map((sourceId) => (
+                      <SelectItem key={sourceId} value={sourceId}>
+                        {sourceId}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               {selectedSource && (
                 <>
@@ -457,7 +455,7 @@ export const DynamicTextSidebar = ({
                         Refresh
                       </Button>
                     </div>
-                    <div className="max-h-60 max-w-[300px] overflow-auto rounded-md border p-2">
+                    <div className="max-h-60 overflow-y-auto rounded-md border p-2">
                       {fieldTree.map((node) => renderFieldNode(node))}
                     </div>
                   </div>
@@ -478,7 +476,7 @@ export const DynamicTextSidebar = ({
                             Item Index
                           </label>
                           <div className="flex items-center gap-2">
-                            <input
+                            <Input
                               id="item-index"
                               type="number"
                               min="0"
@@ -489,7 +487,7 @@ export const DynamicTextSidebar = ({
                                   Number.parseInt(e.target.value) || 0,
                                 )
                               }
-                              className="w-20 rounded-md border border-gray-300 p-1 text-sm"
+                              className="w-20"
                             />
                             <span className="text-xs text-gray-500">
                               of {getArrayItemCount() - 1}
@@ -497,7 +495,7 @@ export const DynamicTextSidebar = ({
                           </div>
                         </div>
                       )}
-                      <Button className="" onClick={handleAddDynamicText}>
+                      <Button className="w-full" onClick={handleAddDynamicText}>
                         Add to Canvas
                       </Button>
                     </div>
@@ -521,12 +519,11 @@ export const DynamicTextSidebar = ({
                 >
                   Source ID
                 </label>
-                <input
+                <Input
                   id="source-id"
                   value={newSourceId}
                   onChange={(e) => setNewSourceId(e.target.value)}
                   placeholder="products"
-                  className="rounded-md border border-gray-300 p-2 text-sm"
                 />
               </div>
               <div className="mb-4">
@@ -536,12 +533,11 @@ export const DynamicTextSidebar = ({
                 >
                   API URL
                 </label>
-                <input
+                <Input
                   id="source-url"
                   value={newSourceUrl}
                   onChange={(e) => setNewSourceUrl(e.target.value)}
                   placeholder="https://api.example.com/data"
-                  className="rounded-md border border-gray-300 p-2 text-sm"
                 />
               </div>
               <div className="mb-4">
@@ -551,16 +547,19 @@ export const DynamicTextSidebar = ({
                 >
                   Method
                 </label>
-                <select
-                  id="source-method"
+                <Select
                   value={newSourceMethod}
-                  onChange={(e) => setNewSourceMethod(e.target.value)}
-                  className="rounded-md border border-gray-300 p-2 text-sm"
+                  onValueChange={setNewSourceMethod}
                 >
-                  <option value="GET">GET</option>
-                  <option value="POST">POST</option>
-                  <option value="PUT">PUT</option>
-                </select>
+                  <SelectTrigger id="source-method">
+                    <SelectValue placeholder="Select method" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="GET">GET</SelectItem>
+                    <SelectItem value="POST">POST</SelectItem>
+                    <SelectItem value="PUT">PUT</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="mb-4">
                 <label
@@ -569,12 +568,11 @@ export const DynamicTextSidebar = ({
                 >
                   Headers (JSON)
                 </label>
-                <input
+                <Input
                   id="source-headers"
                   value={newSourceHeaders}
                   onChange={(e) => setNewSourceHeaders(e.target.value)}
                   placeholder='{"Authorization": "Bearer token"}'
-                  className="rounded-md border border-gray-300 p-2 text-sm"
                 />
               </div>
               <div className="flex justify-end gap-2">

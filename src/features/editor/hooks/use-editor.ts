@@ -137,6 +137,44 @@ const buildEditor = ({
     canvas.setActiveObject(object);
   };
 
+  const updateDynamicText = (
+    dataSourceId: string,
+    fieldPath: string,
+    itemIndex: number,
+    sourceData: any,
+  ) => {
+    canvas.getObjects().forEach((obj: any) => {
+      if (obj.get("isDynamic") && obj.get("dataSourceId") === dataSourceId) {
+        const objFieldPath = obj.get("fieldPath");
+        if (objFieldPath === fieldPath) {
+          const parts = fieldPath
+            .split(/[.[]/)
+            .map((part) => part.replace(/\]$/, ""))
+            .filter((part) => part !== "");
+          let current = sourceData;
+          for (let i = 0; i < parts.length; i++) {
+            const part = parts[i];
+            if (Array.isArray(current)) {
+              if (!isNaN(Number(part))) {
+                current = current[Number(part)];
+              } else {
+                current = current[itemIndex]?.[part];
+              }
+            } else {
+              current = current[part];
+            }
+            if (current === undefined || current === null) {
+              obj.set("text", "N/A");
+              return;
+            }
+          }
+          obj.set("text", current.toString());
+        }
+      }
+    });
+    canvas.renderAll();
+  };
+
   return {
     savePng,
     saveJpg,
@@ -257,6 +295,7 @@ const buildEditor = ({
       });
       canvas.renderAll();
     },
+    updateDynamicText,
     getActiveFontSize: () => {
       const selectedObject = selectedObjects[0];
 
