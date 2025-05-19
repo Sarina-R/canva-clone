@@ -7,6 +7,7 @@ import {
   RefreshCw,
   ChevronRight,
   ChevronDown,
+  X,
 } from "lucide-react";
 import { ActiveTool, Editor } from "@/features/editor/types";
 import { ToolSidebarHeader } from "@/features/editor/components/tool-sidebar-header";
@@ -21,8 +22,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useDataSources } from "@/features/editor/context/data-source-context";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
 
 type FieldNode = {
   path: string;
@@ -45,6 +56,7 @@ export const DynamicTextSidebar = ({
   onChangeActiveTool,
 }: DynamicTextSidebarProps) => {
   const { dataSources, setDataSources } = useDataSources();
+  const { toast } = useToast();
   const [newSourceId, setNewSourceId] = useState("");
   const [newSourceUrl, setNewSourceUrl] = useState("");
   const [newSourceMethod, setNewSourceMethod] = useState("GET");
@@ -55,8 +67,8 @@ export const DynamicTextSidebar = ({
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [fieldTree, setFieldTree] = useState<FieldNode[]>([]);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Open dialog automatically if no data sources
   useEffect(() => {
     if (
       Object.keys(dataSources).length === 0 &&
@@ -66,11 +78,18 @@ export const DynamicTextSidebar = ({
     }
   }, [dataSources, activeTool]);
 
-  // Add a new data source
   const handleAddSource = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newSourceId || !newSourceUrl) return;
+    if (!newSourceId || !newSourceUrl) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Source ID and API URL are required.",
+      });
+      return;
+    }
 
+    setIsLoading(true);
     try {
       let headers: Record<string, string> = {};
       if (newSourceHeaders.trim()) {
@@ -104,17 +123,27 @@ export const DynamicTextSidebar = ({
       setNewSourceMethod("GET");
       setNewSourceHeaders("");
       setShowAddDialog(false);
+      toast({
+        title: "Success",
+        description: "Data source added successfully.",
+      });
     } catch (error) {
       console.error("Error adding data source:", error);
-      alert(`Failed to fetch data from ${newSourceUrl}`);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: `Failed to fetch data from ${newSourceUrl}`,
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Refresh a data source
   const handleRefreshSource = async (sourceId: string) => {
     const source = dataSources[sourceId];
     if (!source) return;
 
+    setIsLoading(true);
     try {
       const response = await fetch(source.endpoint, {
         method: source.method,
@@ -135,13 +164,22 @@ export const DynamicTextSidebar = ({
           timestamp: new Date().toISOString(),
         },
       });
+      toast({
+        title: "Success",
+        description: "Data source refreshed successfully.",
+      });
     } catch (error) {
       console.error("Error refreshing data source:", error);
-      alert(`Failed to refresh data from ${source.endpoint}`);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: `Failed to refresh data from ${source.endpoint}`,
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Get value by path
   const getValueByPath = (obj: any, path: string, index: number) => {
     let current = obj;
     const parts = path
@@ -166,9 +204,15 @@ export const DynamicTextSidebar = ({
     return current.toString();
   };
 
-  // Add dynamic text to canvas
   const handleAddDynamicText = () => {
-    if (!editor || !selectedSource || !selectedField) return;
+    if (!editor || !selectedSource || !selectedField) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please select a source and field.",
+      });
+      return;
+    }
 
     const data = dataSources[selectedSource]?.data;
     if (!data) return;
@@ -191,9 +235,12 @@ export const DynamicTextSidebar = ({
     }
 
     onChangeActiveTool("select");
+    toast({
+      title: "Success",
+      description: "Dynamic text added to canvas.",
+    });
   };
 
-  // Build field tree from data
   const buildFieldTree = (data: any, basePath = ""): FieldNode[] => {
     if (data === null || data === undefined) {
       return [];
@@ -201,10 +248,8 @@ export const DynamicTextSidebar = ({
 
     if (Array.isArray(data)) {
       if (data.length > 0 && typeof data[0] === "object" && data[0] !== null) {
-        // For arrays of objects, build tree for the first item
         return buildFieldTree(data[0], basePath);
       } else {
-        // For empty arrays or arrays of primitives
         return [
           {
             path: basePath,
@@ -231,7 +276,6 @@ export const DynamicTextSidebar = ({
         }
 
         if (Array.isArray(value)) {
-          // For arrays, recursively build tree
           return {
             path,
             label: key,
@@ -242,7 +286,6 @@ export const DynamicTextSidebar = ({
         }
 
         if (valueType === "object") {
-          // For objects, recursively build tree
           return {
             path,
             label: key,
@@ -261,7 +304,6 @@ export const DynamicTextSidebar = ({
       });
     }
 
-    // For primitive values
     return [
       {
         path: basePath,
@@ -272,7 +314,6 @@ export const DynamicTextSidebar = ({
     ];
   };
 
-  // Render a field node
   const renderFieldNode = (node: FieldNode) => {
     const hasChildren = node.children && node.children.length > 0;
     const isExpanded = expandedNodes.has(node.path);
@@ -282,17 +323,19 @@ export const DynamicTextSidebar = ({
       <div key={node.path} className="mb-1">
         <div
           className={cn(
-            "flex cursor-pointer items-center rounded-sm p-2 hover:bg-gray-100",
-            isSelected && "bg-gray-200 font-medium",
+            "flex items-center rounded-md p-2 transition-colors hover:bg-muted",
+            isSelected && "bg-accent font-medium",
           )}
           onClick={() => {
             setSelectedField(node.path);
             setItemIndex(0);
           }}
         >
-          <div className="w-4">
+          <div className="w-6">
             {hasChildren && (
-              <button
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={(e) => {
                   e.stopPropagation();
                   setExpandedNodes((prev) => {
@@ -305,22 +348,21 @@ export const DynamicTextSidebar = ({
                     return newSet;
                   });
                 }}
-                className="flex h-4 w-4 items-center justify-center"
+                className="h-5 w-5"
               >
                 {isExpanded ? (
-                  <ChevronDown className="h-3 w-3" />
+                  <ChevronDown className="h-4 w-4" />
                 ) : (
-                  <ChevronRight className="h-3 w-3" />
+                  <ChevronRight className="h-4 w-4" />
                 )}
-              </button>
+              </Button>
             )}
           </div>
-          <div className="ml-1 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
-            <span className="mr-1 font-medium">{node.label}:</span>
-            {!hasChildren && (
-              <span className="text-gray-500">{node.value || node.type}</span>
-            )}
-            {hasChildren && <span className="text-gray-500">{node.type}</span>}
+          <div className="flex-1 overflow-hidden">
+            <span className="font-medium">{node.label}</span>
+            <span className="ml-1 text-sm text-muted-foreground">
+              {hasChildren ? node.type : node.value || node.type}
+            </span>
           </div>
         </div>
         {hasChildren && isExpanded && (
@@ -332,7 +374,6 @@ export const DynamicTextSidebar = ({
     );
   };
 
-  // Update field tree when source changes
   const handleSourceSelect = (sourceId: string) => {
     setSelectedSource(sourceId);
     setSelectedField("");
@@ -346,7 +387,6 @@ export const DynamicTextSidebar = ({
     }
   };
 
-  // Format timestamp
   const formatTimestamp = (timestamp: string) => {
     try {
       return new Date(timestamp).toLocaleString();
@@ -355,7 +395,6 @@ export const DynamicTextSidebar = ({
     }
   };
 
-  // Get array item count for the selected field
   const getArrayItemCount = () => {
     if (!selectedSource || !selectedField) return 0;
 
@@ -387,37 +426,38 @@ export const DynamicTextSidebar = ({
   return (
     <aside
       className={cn(
-        "relative z-[40] flex h-full w-[360px] flex-col border-r bg-white",
+        "relative z-[40] flex h-full w-80 flex-col border-r bg-background shadow-sm",
         activeTool === "dynamic-text" ? "visible" : "hidden",
       )}
     >
       <ToolSidebarHeader
         title="Dynamic Text"
-        description="Add dynamic text from API data"
+        description="Add dynamic text from API data sources"
       />
-      <ScrollArea>
-        <div className="space-y-6 p-4">
+      <ScrollArea className="flex-1">
+        <div className="max-w-80 space-y-6 p-4">
           {Object.keys(dataSources).length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-md border border-dashed p-8 text-center">
-              <Database className="mb-2 h-8 w-8 text-gray-400" />
-              <h4 className="mb-1 text-sm font-medium">No data sources</h4>
-              <p className="text-xs text-gray-500">
-                Add a data source to create dynamic content
-              </p>
-            </div>
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center pt-6">
+                <Database className="mb-4 h-10 w-10 text-muted-foreground" />
+                <CardTitle className="text-lg">No Data Sources</CardTitle>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Add a data source to create dynamic content
+                </p>
+                <Button className="mt-4" onClick={() => setShowAddDialog(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Data Source
+                </Button>
+              </CardContent>
+            </Card>
           ) : (
             <>
               <Button className="w-full" onClick={() => setShowAddDialog(true)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add Data Source
               </Button>
-              <div>
-                <label
-                  htmlFor="select-source"
-                  className="mb-1 block text-sm font-medium"
-                >
-                  Select Data Source
-                </label>
+              <div className="space-y-2">
+                <Label htmlFor="select-source">Select Data Source</Label>
                 <Select
                   value={selectedSource || ""}
                   onValueChange={handleSourceSelect}
@@ -436,69 +476,86 @@ export const DynamicTextSidebar = ({
               </div>
               {selectedSource && (
                 <>
-                  <div className="text-xs text-gray-500">
-                    <div>Endpoint: {dataSources[selectedSource].endpoint}</div>
-                    <div>
-                      Updated:{" "}
-                      {formatTimestamp(dataSources[selectedSource].timestamp)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-sm font-medium">Fields</span>
+                  <Card>
+                    <CardContent className="pt-4 text-sm text-muted-foreground">
+                      <div>
+                        Endpoint: {dataSources[selectedSource].endpoint}
+                      </div>
+                      <div>
+                        Updated:{" "}
+                        {formatTimestamp(dataSources[selectedSource].timestamp)}
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">
+                        Fields
+                      </CardTitle>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => handleRefreshSource(selectedSource)}
+                        disabled={isLoading}
                       >
-                        <RefreshCw className="mr-1 h-3 w-3" />
+                        <RefreshCw
+                          className={cn(
+                            "mr-2 h-3 w-3",
+                            isLoading && "animate-spin",
+                          )}
+                        />
                         Refresh
                       </Button>
-                    </div>
-                    <div className="max-h-60 overflow-y-auto rounded-md border p-2">
-                      {fieldTree.map((node) => renderFieldNode(node))}
-                    </div>
-                  </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="max-h-60 overflow-y-auto rounded-md border p-2">
+                        {fieldTree.map((node) => renderFieldNode(node))}
+                      </div>
+                    </CardContent>
+                  </Card>
                   {selectedField && (
-                    <div className="rounded-md border p-4">
-                      <h4 className="mb-2 text-sm font-medium">
-                        Add Dynamic Text
-                      </h4>
-                      <p className="mb-2 text-xs text-gray-500">
-                        {selectedSource} → {selectedField}
-                      </p>
-                      {getArrayItemCount() > 0 && (
-                        <div className="mb-4">
-                          <label
-                            htmlFor="item-index"
-                            className="mb-1 block text-xs font-medium"
-                          >
-                            Item Index
-                          </label>
-                          <div className="flex items-center gap-2">
-                            <Input
-                              id="item-index"
-                              type="number"
-                              min="0"
-                              max={getArrayItemCount() - 1}
-                              value={itemIndex}
-                              onChange={(e) =>
-                                setItemIndex(
-                                  Number.parseInt(e.target.value) || 0,
-                                )
-                              }
-                              className="w-20"
-                            />
-                            <span className="text-xs text-gray-500">
-                              of {getArrayItemCount() - 1}
-                            </span>
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-sm font-medium">
+                          Add Dynamic Text
+                        </CardTitle>
+                        <p className="text-xs text-muted-foreground">
+                          {selectedSource} → {selectedField}
+                        </p>
+                      </CardHeader>
+                      <CardContent>
+                        {getArrayItemCount() > 0 && (
+                          <div className="mb-4 space-y-2">
+                            <Label htmlFor="item-index">Item Index</Label>
+                            <div className="flex items-center gap-2">
+                              <Input
+                                id="item-index"
+                                type="number"
+                                min="0"
+                                max={getArrayItemCount() - 1}
+                                value={itemIndex}
+                                onChange={(e) =>
+                                  setItemIndex(
+                                    Number.parseInt(e.target.value) || 0,
+                                  )
+                                }
+                                className="w-20"
+                              />
+                              <span className="text-xs text-muted-foreground">
+                                of {getArrayItemCount() - 1}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      )}
-                      <Button className="w-full" onClick={handleAddDynamicText}>
-                        Add to Canvas
-                      </Button>
-                    </div>
+                        )}
+                        <Button
+                          className="w-full"
+                          onClick={handleAddDynamicText}
+                          disabled={isLoading}
+                        >
+                          Add to Canvas
+                        </Button>
+                      </CardContent>
+                    </Card>
                   )}
                 </>
               )}
@@ -507,87 +564,83 @@ export const DynamicTextSidebar = ({
         </div>
       </ScrollArea>
       <ToolSidebarClose onClick={onClose} />
-      {showAddDialog && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="w-96 rounded-md bg-white p-6">
-            <h3 className="mb-4 text-lg font-semibold">Add Data Source</h3>
-            <form onSubmit={handleAddSource}>
-              <div className="mb-4">
-                <label
-                  htmlFor="source-id"
-                  className="mb-1 block text-sm font-medium"
-                >
-                  Source ID
-                </label>
-                <Input
-                  id="source-id"
-                  value={newSourceId}
-                  onChange={(e) => setNewSourceId(e.target.value)}
-                  placeholder="products"
-                />
-              </div>
-              <div className="mb-4">
-                <label
-                  htmlFor="source-url"
-                  className="mb-1 block text-sm font-medium"
-                >
-                  API URL
-                </label>
-                <Input
-                  id="source-url"
-                  value={newSourceUrl}
-                  onChange={(e) => setNewSourceUrl(e.target.value)}
-                  placeholder="https://api.example.com/data"
-                />
-              </div>
-              <div className="mb-4">
-                <label
-                  htmlFor="source-method"
-                  className="mb-1 block text-sm font-medium"
-                >
-                  Method
-                </label>
-                <Select
-                  value={newSourceMethod}
-                  onValueChange={setNewSourceMethod}
-                >
-                  <SelectTrigger id="source-method">
-                    <SelectValue placeholder="Select method" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="GET">GET</SelectItem>
-                    <SelectItem value="POST">POST</SelectItem>
-                    <SelectItem value="PUT">PUT</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="mb-4">
-                <label
-                  htmlFor="source-headers"
-                  className="mb-1 block text-sm font-medium"
-                >
-                  Headers (JSON)
-                </label>
-                <Input
-                  id="source-headers"
-                  value={newSourceHeaders}
-                  onChange={(e) => setNewSourceHeaders(e.target.value)}
-                  placeholder='{"Authorization": "Bearer token"}'
-                />
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowAddDialog(false)}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit">Add Data Source</Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Data Source</DialogTitle>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-4 top-4"
+              onClick={() => setShowAddDialog(false)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </DialogHeader>
+          <form onSubmit={handleAddSource} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="source-id">Source ID</Label>
+              <Input
+                id="source-id"
+                value={newSourceId}
+                onChange={(e) => setNewSourceId(e.target.value)}
+                placeholder="e.g., products"
+                disabled={isLoading}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="source-url">API URL</Label>
+              <Input
+                id="source-url"
+                value={newSourceUrl}
+                onChange={(e) => setNewSourceUrl(e.target.value)}
+                placeholder="e.g., https://api.example.com/data"
+                disabled={isLoading}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="source-method">Method</Label>
+              <Select
+                value={newSourceMethod}
+                onValueChange={setNewSourceMethod}
+                disabled={isLoading}
+              >
+                <SelectTrigger id="source-method">
+                  <SelectValue placeholder="Select method" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="GET">GET</SelectItem>
+                  <SelectItem value="POST">POST</SelectItem>
+                  <SelectItem value="PUT">PUT</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="source-headers">Headers (JSON)</Label>
+              <Textarea
+                id="source-headers"
+                value={newSourceHeaders}
+                onChange={(e) => setNewSourceHeaders(e.target.value)}
+                placeholder='e.g., {"Authorization": "Bearer token"}'
+                rows={4}
+                disabled={isLoading}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowAddDialog(false)}
+                disabled={isLoading}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? "Adding..." : "Add Data Source"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </aside>
   );
 };
