@@ -32,6 +32,7 @@ import { useAutoResize } from "@/features/editor/hooks/use-auto-resize";
 import { useCanvasEvents } from "@/features/editor/hooks/use-canvas-events";
 import { useWindowEvents } from "@/features/editor/hooks/use-window-events";
 import { useLoadState } from "@/features/editor/hooks/use-load-state";
+import jsPDF from "jspdf";
 
 const buildEditor = ({
   save,
@@ -54,9 +55,26 @@ const buildEditor = ({
   selectedObjects,
   strokeDashArray,
   setStrokeDashArray,
+  workspaceDimensions, // Receive as prop
+  setWorkspaceDimensions, // Receive as prop
 }: BuildEditorProps): Editor => {
   const generateSaveOptions = () => {
-    const { width, height, left, top } = getWorkspace() as fabric.Rect;
+    const workspace = getWorkspace() as fabric.Rect;
+    // Get dimensions with fallbacks
+    const width =
+      workspace?.width && workspace.width > 0
+        ? workspace.width
+        : workspaceDimensions.width || 1200;
+
+    const height =
+      workspace?.height && workspace.height > 0
+        ? workspace.height
+        : workspaceDimensions.height || 900;
+
+    const left = workspace?.left || 0;
+    const top = workspace?.top || 0;
+
+    console.log("generateSaveOptions dimensions:", width, height, left, top);
 
     return {
       name: "Image",
@@ -67,6 +85,44 @@ const buildEditor = ({
       left,
       top,
     };
+  };
+
+  const savePdf = () => {
+    const options = generateSaveOptions();
+    const { width, height, left, top } = options;
+
+    // Ensure dimensions are never 0
+    const pdfWidth = width > 0 ? width : workspaceDimensions.width || 1200;
+    const pdfHeight = height > 0 ? height : workspaceDimensions.height || 900;
+    const pdfLeft = left || 0;
+    const pdfTop = top || 0;
+
+    console.log("PDF dimensions:", pdfWidth, pdfHeight);
+
+    // Reset view transform to ensure correct rendering
+    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+
+    // Get image data for PDF
+    const imgData = canvas.toDataURL({
+      format: "png",
+      quality: 1,
+      left: pdfLeft,
+      top: pdfTop,
+      width: pdfWidth,
+      height: pdfHeight,
+    });
+
+    // Create PDF with proper dimensions
+    const pdf = new jsPDF({
+      orientation: pdfWidth > pdfHeight ? "landscape" : "portrait",
+      unit: "px",
+      format: [pdfWidth, pdfHeight],
+    });
+
+    // Add image to PDF with correct dimensions
+    pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+    pdf.save("design.pdf");
+    autoZoom();
   };
 
   const savePng = () => {
@@ -158,7 +214,7 @@ const buildEditor = ({
               if (!isNaN(Number(part))) {
                 current = current[Number(part)];
               } else {
-                current = current[itemIndex]?.[part];
+                current钡current = current[itemIndex]?.[part];
               }
             } else {
               current = current[part];
@@ -176,6 +232,7 @@ const buildEditor = ({
   };
 
   return {
+    savePdf,
     savePng,
     saveJpg,
     saveSvg,
@@ -205,8 +262,8 @@ const buildEditor = ({
     },
     changeSize: (value: { width: number; height: number }) => {
       const workspace = getWorkspace();
-
       workspace?.set(value);
+      setWorkspaceDimensions(value); // Use the prop
       autoZoom();
       save();
     },
@@ -661,13 +718,16 @@ export const useEditor = ({
   const [canvas, setCanvas] = useState<fabric.Canvas | null>(null);
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const [selectedObjects, setSelectedObjects] = useState<fabric.Object[]>([]);
-
   const [fontFamily, setFontFamily] = useState(FONT_FAMILY);
   const [fillColor, setFillColor] = useState(FILL_COLOR);
   const [strokeColor, setStrokeColor] = useState(STROKE_COLOR);
   const [strokeWidth, setStrokeWidth] = useState(STROKE_WIDTH);
   const [strokeDashArray, setStrokeDashArray] =
     useState<number[]>(STROKE_DASH_ARRAY);
+  const [workspaceDimensions, setWorkspaceDimensions] = useState({
+    width: defaultWidth || 1200,
+    height: defaultHeight || 900,
+  }); // Move useState here
 
   useWindowEvents();
 
@@ -731,6 +791,8 @@ export const useEditor = ({
         setStrokeDashArray,
         fontFamily,
         setFontFamily,
+        workspaceDimensions,
+        setWorkspaceDimensions,
       });
     }
 
@@ -751,6 +813,7 @@ export const useEditor = ({
     selectedObjects,
     strokeDashArray,
     fontFamily,
+    workspaceDimensions, // Add to dependency array
   ]);
 
   const init = useCallback(
@@ -798,10 +861,7 @@ export const useEditor = ({
       canvasHistory.current = [currentState];
       setHistoryIndex(0);
     },
-    [
-      canvasHistory, // No need, this is from useRef
-      setHistoryIndex, // No need, this is from useState
-    ],
+    [canvasHistory, setHistoryIndex],
   );
 
   return { init, editor };

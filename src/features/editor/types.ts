@@ -202,9 +202,11 @@ export type BuildEditorProps = {
   setStrokeColor: (value: string) => void;
   setStrokeWidth: (value: number) => void;
   setFontFamily: (value: string) => void;
+  workspaceDimensions: { width: number; height: number };
 };
 
 export interface Editor {
+  savePdf: () => void;
   savePng: () => void;
   saveJpg: () => void;
   saveSvg: () => void;

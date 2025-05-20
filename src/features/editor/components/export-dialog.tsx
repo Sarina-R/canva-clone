@@ -52,7 +52,6 @@ export function ExportDialog({
   const [isExporting, setIsExporting] = useState(false);
   const [includeAllPages, setIncludeAllPages] = useState(true);
 
-  // Update available data paths when data source changes
   useEffect(() => {
     if (dataSourceId && dataSources[dataSourceId]) {
       const data = dataSources[dataSourceId].data;
@@ -69,7 +68,6 @@ export function ExportDialog({
     }
   }, [dataSourceId, dataSources]);
 
-  // Find the first array in a nested object structure
   const findFirstArrayPath = (data: any, path = ""): string => {
     if (!data || typeof data !== "object") return "";
     if (Array.isArray(data)) return path;
@@ -83,13 +81,11 @@ export function ExportDialog({
     return "";
   };
 
-  // Get a value from an object by path
   const getValueByPath = (obj: any, path: string): any => {
     if (!path) return obj;
     return path.split(".").reduce((o, key) => (o ? o[key] : undefined), obj);
   };
 
-  // Handle export
   const handleExport = async () => {
     if (!editor?.canvas) return;
     setIsExporting(true);
@@ -97,7 +93,15 @@ export function ExportDialog({
       if (exportFormat === "png") {
         editor.savePng();
       } else {
-        await exportAsPDF();
+        if (
+          dataSourceId &&
+          dataSourceId !== "none" &&
+          dataSources[dataSourceId]
+        ) {
+          await exportAsPDF();
+        } else {
+          editor.savePdf();
+        }
       }
     } catch (error) {
       console.error("Export error:", error);
@@ -107,10 +111,9 @@ export function ExportDialog({
     }
   };
 
-  // Export as PDF with data range
   const exportAsPDF = async () => {
     if (!editor?.canvas || !dataSourceId || !dataSources[dataSourceId]) {
-      exportSinglePagePDF();
+      editor.savePdf();
       return;
     }
 
@@ -118,9 +121,23 @@ export function ExportDialog({
     const dataArray = dataPath ? getValueByPath(sourceData, dataPath) : null;
 
     if (!Array.isArray(dataArray) || dataArray.length === 0) {
-      exportSinglePagePDF();
+      editor.savePdf();
       return;
     }
+
+    // Get workspace dimensions
+    const workspace = editor.getWorkspace() as fabric.Rect;
+    const width =
+      workspace?.width && workspace.width > 0
+        ? workspace.width
+        : editor.canvas.getWidth() || 1200;
+
+    const height =
+      workspace?.height && workspace.height > 0
+        ? workspace.height
+        : editor.canvas.getHeight() || 900;
+
+    console.log("Multi-page PDF dimensions:", width, height);
 
     const start = includeAllPages ? 0 : Math.max(0, startIndex);
     const end = includeAllPages
@@ -128,9 +145,9 @@ export function ExportDialog({
       : Math.min(endIndex, dataArray.length - 1);
 
     const pdf = new jsPDF({
-      orientation: "landscape",
+      orientation: width > height ? "landscape" : "portrait",
       unit: "px",
-      format: [editor.canvas.getWidth(), editor.canvas.getHeight()],
+      format: [width, height],
     });
 
     const originalJSON = editor.canvas.toJSON();
@@ -138,10 +155,9 @@ export function ExportDialog({
     for (let i = start; i <= end; i++) {
       if (i >= dataArray.length) break;
       if (i > start) {
-        pdf.addPage();
+        pdf.addPage([width, height], width > height ? "landscape" : "portrait");
       }
 
-      // Update all dynamic text objects for the current index
       editor.canvas.getObjects().forEach((obj: any) => {
         if (obj.get("isDynamic") && obj.get("dataSourceId") === dataSourceId) {
           const fieldPath = obj.get("fieldPath");
@@ -151,55 +167,28 @@ export function ExportDialog({
         }
       });
 
-      // Wait for canvas to render
       await new Promise((resolve) => {
         editor.canvas.renderAll();
-        setTimeout(resolve, 10); // Increased delay to ensure rendering
+        setTimeout(resolve, 10);
       });
+
+      // Reset view transform to ensure correct rendering
+      editor.canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
 
       const dataURL = editor.canvas.toDataURL({
         format: "png",
         quality: 1,
+        width: width,
+        height: height,
       });
 
-      pdf.addImage(
-        dataURL,
-        "PNG",
-        0,
-        0,
-        editor.canvas.getWidth(),
-        editor.canvas.getHeight(),
-      );
+      pdf.addImage(dataURL, "PNG", 0, 0, width, height);
     }
 
-    // Restore original canvas state
     editor.canvas.loadFromJSON(originalJSON, () => {
       editor.canvas.renderAll();
     });
 
-    pdf.save(`${fileName}.pdf`);
-  };
-
-  // Export single page PDF
-  const exportSinglePagePDF = () => {
-    if (!editor?.canvas) return;
-    const pdf = new jsPDF({
-      orientation: "landscape",
-      unit: "px",
-      format: [editor.canvas.getWidth(), editor.canvas.getHeight()],
-    });
-    const dataURL = editor.canvas.toDataURL({
-      format: "png",
-      quality: 1,
-    });
-    pdf.addImage(
-      dataURL,
-      "PNG",
-      0,
-      0,
-      editor.canvas.getWidth(),
-      editor.canvas.getHeight(),
-    );
     pdf.save(`${fileName}.pdf`);
   };
 
