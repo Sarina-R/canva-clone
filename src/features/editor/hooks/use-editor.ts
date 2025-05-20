@@ -55,22 +55,19 @@ const buildEditor = ({
   selectedObjects,
   strokeDashArray,
   setStrokeDashArray,
-  workspaceDimensions, // Receive as prop
-  setWorkspaceDimensions, // Receive as prop
+  workspaceDimensions,
+  setWorkspaceDimensions,
 }: BuildEditorProps): Editor => {
   const generateSaveOptions = () => {
     const workspace = getWorkspace() as fabric.Rect;
-    // Get dimensions with fallbacks
     const width =
       workspace?.width && workspace.width > 0
         ? workspace.width
         : workspaceDimensions.width || 1200;
-
     const height =
       workspace?.height && workspace.height > 0
         ? workspace.height
         : workspaceDimensions.height || 900;
-
     const left = workspace?.left || 0;
     const top = workspace?.top || 0;
 
@@ -91,7 +88,6 @@ const buildEditor = ({
     const options = generateSaveOptions();
     const { width, height, left, top } = options;
 
-    // Ensure dimensions are never 0
     const pdfWidth = width > 0 ? width : workspaceDimensions.width || 1200;
     const pdfHeight = height > 0 ? height : workspaceDimensions.height || 900;
     const pdfLeft = left || 0;
@@ -99,10 +95,12 @@ const buildEditor = ({
 
     console.log("PDF dimensions:", pdfWidth, pdfHeight);
 
-    // Reset view transform to ensure correct rendering
     canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
 
-    // Get image data for PDF
+    const workspace = getWorkspace() as fabric.Rect;
+    workspace.set({ visible: false });
+    canvas.renderAll();
+
     const imgData = canvas.toDataURL({
       format: "png",
       quality: 1,
@@ -112,63 +110,66 @@ const buildEditor = ({
       height: pdfHeight,
     });
 
-    // Create PDF with proper dimensions
     const pdf = new jsPDF({
       orientation: pdfWidth > pdfHeight ? "landscape" : "portrait",
       unit: "px",
       format: [pdfWidth, pdfHeight],
     });
 
-    // Add image to PDF with correct dimensions
     pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
     pdf.save("design.pdf");
+
+    workspace.set({ visible: true });
+    canvas.renderAll();
     autoZoom();
   };
 
   const savePng = () => {
     const options = generateSaveOptions();
-
     canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
     const dataUrl = canvas.toDataURL(options);
-
     downloadFile(dataUrl, "png");
     autoZoom();
   };
 
   const saveSvg = () => {
     const options = generateSaveOptions();
-
     canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
     const dataUrl = canvas.toDataURL(options);
-
     downloadFile(dataUrl, "svg");
     autoZoom();
   };
 
   const saveJpg = () => {
     const options = generateSaveOptions();
-
     canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
     const dataUrl = canvas.toDataURL(options);
-
     downloadFile(dataUrl, "jpg");
     autoZoom();
   };
 
   const saveJson = async () => {
-    const dataUrl = canvas.toJSON(JSON_KEYS);
-
-    await transformText(dataUrl.objects);
+    const workspace = getWorkspace() as fabric.Rect;
+    const data = {
+      width: workspace.width,
+      height: workspace.height,
+      objects: canvas.toJSON(JSON_KEYS),
+    };
+    await transformText(data.objects);
     const fileString = `data:text/json;charset=utf-8,${encodeURIComponent(
-      JSON.stringify(dataUrl, null, "\t"),
+      JSON.stringify(data, null, "\t"),
     )}`;
     downloadFile(fileString, "json");
   };
 
   const loadJson = (json: string) => {
     const data = JSON.parse(json);
-
-    canvas.loadFromJSON(data, () => {
+    if (data.width && data.height) {
+      canvas.setWidth(data.width);
+      canvas.setHeight(data.height);
+      setWorkspaceDimensions({ width: data.width, height: data.height });
+    }
+    canvas.loadFromJSON(data.objects || data, () => {
       autoZoom();
     });
   };
@@ -180,9 +181,7 @@ const buildEditor = ({
   const center = (object: fabric.Object) => {
     const workspace = getWorkspace();
     const center = workspace?.getCenterPoint();
-
     if (!center) return;
-
     // @ts-ignore
     canvas._centerObject(object, center);
   };
@@ -203,28 +202,28 @@ const buildEditor = ({
       if (obj.get("isDynamic") && obj.get("dataSourceId") === dataSourceId) {
         const objFieldPath = obj.get("fieldPath");
         if (objFieldPath === fieldPath) {
-          const parts = fieldPath
-            .split(/[.[]/)
-            .map((part) => part.replace(/\]$/, ""))
-            .filter((part) => part !== "");
+          // Remove any index-specific parts from fieldPath (e.g., posts[0].title -> posts.title)
+          const cleanPath = fieldPath.replace(/\[\d+\]/g, "");
           let current = sourceData;
+          const parts = cleanPath.split(".").filter((part) => part !== "");
           for (let i = 0; i < parts.length; i++) {
             const part = parts[i];
-            if (Array.isArray(current)) {
-              if (!isNaN(Number(part))) {
-                current = current[Number(part)];
-              } else {
-                current钡current = current[itemIndex]?.[part];
-              }
-            } else {
-              current = current[part];
-            }
-            if (current === undefined || current === null) {
+            if (!current) {
               obj.set("text", "N/A");
               return;
             }
+            if (Array.isArray(current)) {
+              current = current[itemIndex]?.[part];
+            } else {
+              current = current[part];
+            }
           }
-          obj.set("text", current.toString());
+          obj.set(
+            "text",
+            current !== undefined && current !== null
+              ? current.toString()
+              : "N/A",
+          );
         }
       }
     });
@@ -263,7 +262,9 @@ const buildEditor = ({
     changeSize: (value: { width: number; height: number }) => {
       const workspace = getWorkspace();
       workspace?.set(value);
-      setWorkspaceDimensions(value); // Use the prop
+      canvas.setWidth(value.width);
+      canvas.setHeight(value.height);
+      setWorkspaceDimensions(value);
       autoZoom();
       save();
     },
@@ -292,9 +293,7 @@ const buildEditor = ({
       objects.forEach((object) => {
         if (object.type === "image") {
           const imageObject = object as fabric.Image;
-
           const effect = createFilter(value);
-
           imageObject.filters = effect ? [effect] : [];
           imageObject.applyFilters();
           canvas.renderAll();
@@ -306,10 +305,8 @@ const buildEditor = ({
         value,
         (image) => {
           const workspace = getWorkspace();
-
           image.scaleToWidth(workspace?.width || 0);
           image.scaleToHeight(workspace?.height || 0);
-
           addToCanvas(image);
         },
         {
@@ -328,49 +325,39 @@ const buildEditor = ({
         fill: fillColor,
         ...options,
       });
-
       addToCanvas(object);
     },
+    updateDynamicText,
     getActiveOpacity: () => {
       const selectedObject = selectedObjects[0];
-
       if (!selectedObject) {
         return 1;
       }
-
       const value = selectedObject.get("opacity") || 1;
-
       return value;
     },
     changeFontSize: (value: number) => {
       canvas.getActiveObjects().forEach((object) => {
         if (isTextType(object.type)) {
           // @ts-ignore
-          // Faulty TS library, fontSize exists.
           object.set({ fontSize: value });
         }
       });
       canvas.renderAll();
     },
-    updateDynamicText,
     getActiveFontSize: () => {
       const selectedObject = selectedObjects[0];
-
       if (!selectedObject) {
         return FONT_SIZE;
       }
-
       // @ts-ignore
-      // Faulty TS library, fontSize exists.
       const value = selectedObject.get("fontSize") || FONT_SIZE;
-
       return value;
     },
     changeTextAlign: (value: string) => {
       canvas.getActiveObjects().forEach((object) => {
         if (isTextType(object.type)) {
           // @ts-ignore
-          // Faulty TS library, textAlign exists.
           object.set({ textAlign: value });
         }
       });
@@ -378,22 +365,17 @@ const buildEditor = ({
     },
     getActiveTextAlign: () => {
       const selectedObject = selectedObjects[0];
-
       if (!selectedObject) {
         return "left";
       }
-
       // @ts-ignore
-      // Faulty TS library, textAlign exists.
       const value = selectedObject.get("textAlign") || "left";
-
       return value;
     },
     changeFontUnderline: (value: boolean) => {
       canvas.getActiveObjects().forEach((object) => {
         if (isTextType(object.type)) {
           // @ts-ignore
-          // Faulty TS library, underline exists.
           object.set({ underline: value });
         }
       });
@@ -401,22 +383,17 @@ const buildEditor = ({
     },
     getActiveFontUnderline: () => {
       const selectedObject = selectedObjects[0];
-
       if (!selectedObject) {
         return false;
       }
-
       // @ts-ignore
-      // Faulty TS library, underline exists.
       const value = selectedObject.get("underline") || false;
-
       return value;
     },
     changeFontLinethrough: (value: boolean) => {
       canvas.getActiveObjects().forEach((object) => {
         if (isTextType(object.type)) {
           // @ts-ignore
-          // Faulty TS library, linethrough exists.
           object.set({ linethrough: value });
         }
       });
@@ -424,22 +401,17 @@ const buildEditor = ({
     },
     getActiveFontLinethrough: () => {
       const selectedObject = selectedObjects[0];
-
       if (!selectedObject) {
         return false;
       }
-
       // @ts-ignore
-      // Faulty TS library, linethrough exists.
       const value = selectedObject.get("linethrough") || false;
-
       return value;
     },
     changeFontStyle: (value: string) => {
       canvas.getActiveObjects().forEach((object) => {
         if (isTextType(object.type)) {
           // @ts-ignore
-          // Faulty TS library, fontStyle exists.
           object.set({ fontStyle: value });
         }
       });
@@ -447,22 +419,17 @@ const buildEditor = ({
     },
     getActiveFontStyle: () => {
       const selectedObject = selectedObjects[0];
-
       if (!selectedObject) {
         return "normal";
       }
-
       // @ts-ignore
-      // Faulty TS library, fontStyle exists.
       const value = selectedObject.get("fontStyle") || "normal";
-
       return value;
     },
     changeFontWeight: (value: number) => {
       canvas.getActiveObjects().forEach((object) => {
         if (isTextType(object.type)) {
           // @ts-ignore
-          // Faulty TS library, fontWeight exists.
           object.set({ fontWeight: value });
         }
       });
@@ -478,9 +445,7 @@ const buildEditor = ({
       canvas.getActiveObjects().forEach((object) => {
         canvas.bringForward(object);
       });
-
       canvas.renderAll();
-
       const workspace = getWorkspace();
       workspace?.sendToBack();
     },
@@ -488,7 +453,6 @@ const buildEditor = ({
       canvas.getActiveObjects().forEach((object) => {
         canvas.sendBackwards(object);
       });
-
       canvas.renderAll();
       const workspace = getWorkspace();
       workspace?.sendToBack();
@@ -498,7 +462,6 @@ const buildEditor = ({
       canvas.getActiveObjects().forEach((object) => {
         if (isTextType(object.type)) {
           // @ts-ignore
-          // Faulty TS library, fontFamily exists.
           object.set({ fontFamily: value });
         }
       });
@@ -514,12 +477,10 @@ const buildEditor = ({
     changeStrokeColor: (value: string) => {
       setStrokeColor(value);
       canvas.getActiveObjects().forEach((object) => {
-        // Text types don't have stroke
         if (isTextType(object.type)) {
           object.set({ fill: value });
           return;
         }
-
         object.set({ stroke: value });
       });
       canvas.freeDrawingBrush.color = value;
@@ -548,7 +509,6 @@ const buildEditor = ({
         strokeWidth: strokeWidth,
         strokeDashArray: strokeDashArray,
       });
-
       addToCanvas(object);
     },
     addSoftRectangle: () => {
@@ -561,7 +521,6 @@ const buildEditor = ({
         strokeWidth: strokeWidth,
         strokeDashArray: strokeDashArray,
       });
-
       addToCanvas(object);
     },
     addRectangle: () => {
@@ -572,7 +531,6 @@ const buildEditor = ({
         strokeWidth: strokeWidth,
         strokeDashArray: strokeDashArray,
       });
-
       addToCanvas(object);
     },
     addTriangle: () => {
@@ -583,13 +541,11 @@ const buildEditor = ({
         strokeWidth: strokeWidth,
         strokeDashArray: strokeDashArray,
       });
-
       addToCanvas(object);
     },
     addInverseTriangle: () => {
       const HEIGHT = TRIANGLE_OPTIONS.height;
       const WIDTH = TRIANGLE_OPTIONS.width;
-
       const object = new fabric.Polygon(
         [
           { x: 0, y: 0 },
@@ -604,13 +560,11 @@ const buildEditor = ({
           strokeDashArray: strokeDashArray,
         },
       );
-
       addToCanvas(object);
     },
     addDiamond: () => {
       const HEIGHT = DIAMOND_OPTIONS.height;
       const WIDTH = DIAMOND_OPTIONS.width;
-
       const object = new fabric.Polygon(
         [
           { x: WIDTH / 2, y: 0 },
@@ -631,73 +585,52 @@ const buildEditor = ({
     canvas,
     getActiveFontWeight: () => {
       const selectedObject = selectedObjects[0];
-
       if (!selectedObject) {
         return FONT_WEIGHT;
       }
-
       // @ts-ignore
-      // Faulty TS library, fontWeight exists.
       const value = selectedObject.get("fontWeight") || FONT_WEIGHT;
-
       return value;
     },
     getActiveFontFamily: () => {
       const selectedObject = selectedObjects[0];
-
       if (!selectedObject) {
         return fontFamily;
       }
-
       // @ts-ignore
-      // Faulty TS library, fontFamily exists.
       const value = selectedObject.get("fontFamily") || fontFamily;
-
       return value;
     },
     getActiveFillColor: () => {
       const selectedObject = selectedObjects[0];
-
       if (!selectedObject) {
         return fillColor;
       }
-
       const value = selectedObject.get("fill") || fillColor;
-
-      // Currently, gradients & patterns are not supported
       return value as string;
     },
     getActiveStrokeColor: () => {
       const selectedObject = selectedObjects[0];
-
       if (!selectedObject) {
         return strokeColor;
       }
-
       const value = selectedObject.get("stroke") || strokeColor;
-
       return value;
     },
     getActiveStrokeWidth: () => {
       const selectedObject = selectedObjects[0];
-
       if (!selectedObject) {
         return strokeWidth;
       }
-
       const value = selectedObject.get("strokeWidth") || strokeWidth;
-
       return value;
     },
     getActiveStrokeDashArray: () => {
       const selectedObject = selectedObjects[0];
-
       if (!selectedObject) {
         return strokeDashArray;
       }
-
       const value = selectedObject.get("strokeDashArray") || strokeDashArray;
-
       return value;
     },
     selectedObjects,
@@ -727,7 +660,7 @@ export const useEditor = ({
   const [workspaceDimensions, setWorkspaceDimensions] = useState({
     width: defaultWidth || 1200,
     height: defaultHeight || 900,
-  }); // Move useState here
+  });
 
   useWindowEvents();
 
@@ -795,7 +728,6 @@ export const useEditor = ({
         setWorkspaceDimensions,
       });
     }
-
     return undefined;
   }, [
     canRedo,
@@ -813,7 +745,7 @@ export const useEditor = ({
     selectedObjects,
     strokeDashArray,
     fontFamily,
-    workspaceDimensions, // Add to dependency array
+    workspaceDimensions,
   ]);
 
   const init = useCallback(

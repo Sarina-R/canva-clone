@@ -125,24 +125,13 @@ export function ExportDialog({
       return;
     }
 
-    // Get workspace dimensions
     const workspace = editor.getWorkspace() as fabric.Rect;
     const width =
-      workspace?.width && workspace.width > 0
-        ? workspace.width
-        : editor.canvas.getWidth() || 1200;
-
+      workspace?.width && workspace.width > 0 ? workspace.width : 1200;
     const height =
-      workspace?.height && workspace.height > 0
-        ? workspace.height
-        : editor.canvas.getHeight() || 900;
+      workspace?.height && workspace.height > 0 ? workspace.height : 900;
 
     console.log("Multi-page PDF dimensions:", width, height);
-
-    const start = includeAllPages ? 0 : Math.max(0, startIndex);
-    const end = includeAllPages
-      ? dataArray.length - 1
-      : Math.min(endIndex, dataArray.length - 1);
 
     const pdf = new jsPDF({
       orientation: width > height ? "landscape" : "portrait",
@@ -152,39 +141,59 @@ export function ExportDialog({
 
     const originalJSON = editor.canvas.toJSON();
 
+    const start = includeAllPages ? 0 : Math.max(0, startIndex);
+    const end = includeAllPages
+      ? dataArray.length - 1
+      : Math.min(endIndex, dataArray.length - 1);
+
     for (let i = start; i <= end; i++) {
       if (i >= dataArray.length) break;
       if (i > start) {
         pdf.addPage([width, height], width > height ? "landscape" : "portrait");
       }
 
+      // Update all dynamic text objects for the current index
       editor.canvas.getObjects().forEach((obj: any) => {
         if (obj.get("isDynamic") && obj.get("dataSourceId") === dataSourceId) {
           const fieldPath = obj.get("fieldPath");
           if (fieldPath) {
+            console.log(
+              `Updating text: fieldPath=${fieldPath}, itemIndex=${i}`,
+            );
             editor.updateDynamicText(dataSourceId, fieldPath, i, sourceData);
           }
         }
       });
 
+      // Hide workspace to prevent border rendering
+      workspace.set({ visible: false });
+      editor.canvas.renderAll();
+
+      // Wait for canvas to render
       await new Promise((resolve) => {
         editor.canvas.renderAll();
-        setTimeout(resolve, 10);
+        setTimeout(resolve, 200); // Increased delay to ensure rendering
       });
 
-      // Reset view transform to ensure correct rendering
       editor.canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
 
       const dataURL = editor.canvas.toDataURL({
         format: "png",
         quality: 1,
+        left: 0, // Use 0 to avoid negative offsets
+        top: 0, // Use 0 to avoid negative offsets
         width: width,
         height: height,
       });
 
       pdf.addImage(dataURL, "PNG", 0, 0, width, height);
+
+      // Restore workspace visibility
+      workspace.set({ visible: true });
+      editor.canvas.renderAll();
     }
 
+    // Restore original canvas state
     editor.canvas.loadFromJSON(originalJSON, () => {
       editor.canvas.renderAll();
     });

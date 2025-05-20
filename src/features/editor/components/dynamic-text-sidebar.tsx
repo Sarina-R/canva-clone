@@ -205,14 +205,7 @@ export const DynamicTextSidebar = ({
   };
 
   const handleAddDynamicText = () => {
-    if (!editor || !selectedSource || !selectedField) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Please select a source and field.",
-      });
-      return;
-    }
+    if (!editor || !selectedSource || !selectedField) return;
 
     const data = dataSources[selectedSource]?.data;
     if (!data) return;
@@ -228,17 +221,13 @@ export const DynamicTextSidebar = ({
     const activeObject = editor.canvas.getActiveObject();
     if (activeObject) {
       activeObject.set("dataSourceId", selectedSource);
-      activeObject.set("fieldPath", selectedField);
+      activeObject.set("fieldPath", selectedField.replace(/\[\d+\]/g, ""));
       activeObject.set("itemIndex", itemIndex);
       activeObject.set("isDynamic", true);
       editor.canvas.renderAll();
     }
 
     onChangeActiveTool("select");
-    toast({
-      title: "Success",
-      description: "Dynamic text added to canvas.",
-    });
   };
 
   const buildFieldTree = (data: any, basePath = ""): FieldNode[] => {

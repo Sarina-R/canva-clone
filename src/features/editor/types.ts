@@ -1,6 +1,7 @@
 import { fabric } from "fabric";
 import { ITextboxOptions } from "fabric/fabric-impl";
 import * as material from "material-colors";
+import { Dispatch, SetStateAction } from "react";
 
 export const JSON_KEYS = [
   "name",
@@ -203,6 +204,12 @@ export type BuildEditorProps = {
   setStrokeWidth: (value: number) => void;
   setFontFamily: (value: string) => void;
   workspaceDimensions: { width: number; height: number };
+  setWorkspaceDimensions: Dispatch<
+    SetStateAction<{
+      width: number;
+      height: number;
+    }>
+  >;
 };
 
 export interface Editor {
