@@ -112,7 +112,6 @@ export function ExportDialog({
   };
 
   const exportAsPDF = async () => {
-    console.log("Entering the area");
     if (!editor?.canvas || !dataSourceId || !dataSources[dataSourceId]) {
       editor.savePdf();
       return;
@@ -128,23 +127,16 @@ export function ExportDialog({
     editor.canvas.renderAll();
     const workspace = editor.getWorkspace() as fabric.Rect;
 
-    console.log(workspace);
     const width =
       workspace?.width && workspace.width > 0 ? workspace.width : 1200;
     const height =
       workspace?.height && workspace.height > 0 ? workspace.height : 900;
-
-    console.log(workspace);
-
-    console.log("Multi-page PDF dimensions:", width, height);
 
     const pdf = new jsPDF({
       orientation: width > height ? "landscape" : "portrait",
       unit: "px",
       format: [width, height],
     });
-
-    console.log({ workspace: workspace });
 
     const originalJSON = editor.canvas.toJSON();
 
@@ -170,24 +162,16 @@ export function ExportDialog({
           }
         }
       });
-      console.log({ workspace: workspace });
-      console.log(width, height);
 
       workspace.set({ visible: false });
       editor.canvas.renderAll();
-      console.log({ workspace: workspace });
-      console.log(width, height);
 
       await new Promise((resolve) => {
         editor.canvas.renderAll();
         setTimeout(resolve, 10);
       });
-      console.log({ workspace: workspace });
-      console.log(width, height);
 
       editor.canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
-      console.log({ workspace: workspace });
-      console.log(width, height);
 
       const dataURL = editor.canvas.toDataURL({
         format: "png",
@@ -197,18 +181,12 @@ export function ExportDialog({
         width: width,
         height: height,
       });
-      console.log({ workspace: workspace });
-      console.log(width, height);
-      console.log(editor);
-      console.log(workspace);
 
       pdf.addImage(dataURL, "PNG", 0, 0, width, height);
-      console.log({ workspace: workspace });
       editor?.changeSize({
         width: width,
         height: height,
       });
-      console.log(workspace);
 
       workspace.set({ visible: true });
       editor?.changeSize({
@@ -222,7 +200,6 @@ export function ExportDialog({
       });
       workspace.width = width;
       workspace.height = height;
-      console.log(workspace);
     }
 
     // editor.canvas.loadFromJSON(originalJSON, () => {
@@ -230,7 +207,6 @@ export function ExportDialog({
     //   editor.autoZoom();
     // });
     pdf.save(`${fileName}.pdf`);
-    console.log(workspace, "expected to be undefined");
   };
 
   return (
