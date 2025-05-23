@@ -88,18 +88,24 @@ const buildEditor = ({
     const options = generateSaveOptions();
     const { width, height, left, top } = options;
 
+    const tempWidth = workspaceDimensions.width;
+    const tempHeight = workspaceDimensions.height;
+
     const pdfWidth = width > 0 ? width : workspaceDimensions.width || 1200;
     const pdfHeight = height > 0 ? height : workspaceDimensions.height || 900;
+    console.log(pdfWidth, pdfWidth);
+    console.log(workspaceDimensions.width, workspaceDimensions.height);
     const pdfLeft = left || 0;
     const pdfTop = top || 0;
 
-    console.log("PDF dimensions:", pdfWidth, pdfHeight);
-
     canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+    canvas.renderAll();
 
     const workspace = getWorkspace() as fabric.Rect;
+    console.log(workspace);
+
     workspace.set({ visible: false });
-    canvas.renderAll();
+    console.log(workspaceDimensions.width, workspaceDimensions.height);
 
     const imgData = canvas.toDataURL({
       format: "png",
@@ -116,9 +122,14 @@ const buildEditor = ({
       format: [pdfWidth, pdfHeight],
     });
 
+    console.log(tempWidth, tempHeight);
+
     pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
     pdf.save("design.pdf");
 
+    setWorkspaceDimensions({ width: tempWidth, height: tempHeight });
+
+    console.log(tempWidth, tempHeight);
     workspace.set({ visible: true });
     canvas.renderAll();
     autoZoom();

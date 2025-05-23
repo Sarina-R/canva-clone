@@ -5,7 +5,7 @@ import type { RGBColor } from "react-color";
 export function transformText(objects: any) {
   if (!objects) return;
 
-  objects.forEach((item: any) => {
+  objects?.forEach((item: any) => {
     if (item.objects) {
       transformText(item.objects);
     } else {

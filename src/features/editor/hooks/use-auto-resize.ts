@@ -23,6 +23,11 @@ export const useAutoResize = ({ canvas, container }: UseAutoResizeProps) => {
       .getObjects()
       .find((object) => object.name === "clip");
 
+    if (!localWorkspace) {
+      console.warn("Workspace not found, skipping autoZoom");
+      return;
+    }
+
     // @ts-ignore
     const scale = fabric.util.findScaleToFit(localWorkspace, {
       width: width,
@@ -33,8 +38,6 @@ export const useAutoResize = ({ canvas, container }: UseAutoResizeProps) => {
 
     canvas.setViewportTransform(fabric.iMatrix.concat());
     canvas.zoomToPoint(new fabric.Point(center.left, center.top), zoom);
-
-    if (!localWorkspace) return;
 
     const workspaceCenter = localWorkspace.getCenterPoint();
     const viewportTransform = canvas.viewportTransform;
@@ -68,7 +71,6 @@ export const useAutoResize = ({ canvas, container }: UseAutoResizeProps) => {
       resizeObserver = new ResizeObserver(() => {
         autoZoom();
       });
-
       resizeObserver.observe(container);
     }
 

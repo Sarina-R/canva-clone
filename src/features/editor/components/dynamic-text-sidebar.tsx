@@ -164,6 +164,7 @@ export const DynamicTextSidebar = ({
           timestamp: new Date().toISOString(),
         },
       });
+      console.log(dataSources);
       toast({
         title: "Success",
         description: "Data source refreshed successfully.",

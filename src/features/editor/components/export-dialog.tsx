@@ -112,6 +112,7 @@ export function ExportDialog({
   };
 
   const exportAsPDF = async () => {
+    console.log("Entering the area");
     if (!editor?.canvas || !dataSourceId || !dataSources[dataSourceId]) {
       editor.savePdf();
       return;
@@ -124,12 +125,16 @@ export function ExportDialog({
       editor.savePdf();
       return;
     }
-
+    editor.canvas.renderAll();
     const workspace = editor.getWorkspace() as fabric.Rect;
+
+    console.log(workspace);
     const width =
       workspace?.width && workspace.width > 0 ? workspace.width : 1200;
     const height =
       workspace?.height && workspace.height > 0 ? workspace.height : 900;
+
+    console.log(workspace);
 
     console.log("Multi-page PDF dimensions:", width, height);
 
@@ -138,6 +143,8 @@ export function ExportDialog({
       unit: "px",
       format: [width, height],
     });
+
+    console.log({ workspace: workspace });
 
     const originalJSON = editor.canvas.toJSON();
 
@@ -152,7 +159,6 @@ export function ExportDialog({
         pdf.addPage([width, height], width > height ? "landscape" : "portrait");
       }
 
-      // Update all dynamic text objects for the current index
       editor.canvas.getObjects().forEach((obj: any) => {
         if (obj.get("isDynamic") && obj.get("dataSourceId") === dataSourceId) {
           const fieldPath = obj.get("fieldPath");
@@ -164,41 +170,67 @@ export function ExportDialog({
           }
         }
       });
+      console.log({ workspace: workspace });
+      console.log(width, height);
 
-      // Hide workspace to prevent border rendering
       workspace.set({ visible: false });
       editor.canvas.renderAll();
+      console.log({ workspace: workspace });
+      console.log(width, height);
 
-      // Wait for canvas to render
       await new Promise((resolve) => {
         editor.canvas.renderAll();
-        setTimeout(resolve, 200); // Increased delay to ensure rendering
+        setTimeout(resolve, 10);
       });
+      console.log({ workspace: workspace });
+      console.log(width, height);
 
       editor.canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+      console.log({ workspace: workspace });
+      console.log(width, height);
 
       const dataURL = editor.canvas.toDataURL({
         format: "png",
         quality: 1,
-        left: 0, // Use 0 to avoid negative offsets
-        top: 0, // Use 0 to avoid negative offsets
+        left: 0,
+        top: 0,
         width: width,
         height: height,
       });
+      console.log({ workspace: workspace });
+      console.log(width, height);
+      console.log(editor);
+      console.log(workspace);
 
       pdf.addImage(dataURL, "PNG", 0, 0, width, height);
+      console.log({ workspace: workspace });
+      editor?.changeSize({
+        width: width,
+        height: height,
+      });
+      console.log(workspace);
 
-      // Restore workspace visibility
       workspace.set({ visible: true });
+      editor?.changeSize({
+        width: width,
+        height: height,
+      });
       editor.canvas.renderAll();
+      editor?.changeSize({
+        width: width,
+        height: height,
+      });
+      workspace.width = width;
+      workspace.height = height;
+      console.log(workspace);
     }
 
-    // Restore original canvas state
-    editor.canvas.loadFromJSON(originalJSON, () => {
-      editor.canvas.renderAll();
-    });
-
+    // editor.canvas.loadFromJSON(originalJSON, () => {
+    //   editor.canvas.renderAll();
+    //   editor.autoZoom();
+    // });
     pdf.save(`${fileName}.pdf`);
+    console.log(workspace, "expected to be undefined");
   };
 
   return (
