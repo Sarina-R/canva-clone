@@ -124,13 +124,9 @@ export function ExportDialog({
       editor.savePdf();
       return;
     }
-    editor.canvas.renderAll();
-    const workspace = editor.getWorkspace() as fabric.Rect;
 
-    const width =
-      workspace?.width && workspace.width > 0 ? workspace.width : 1200;
-    const height =
-      workspace?.height && workspace.height > 0 ? workspace.height : 900;
+    const workspace = editor.getWorkspace() as fabric.Rect;
+    const { width, height, left, top } = editor.generateSaveOptions();
 
     const pdf = new jsPDF({
       orientation: width > height ? "landscape" : "portrait",
@@ -138,15 +134,12 @@ export function ExportDialog({
       format: [width, height],
     });
 
-    const originalJSON = editor.canvas.toJSON();
-
     const start = includeAllPages ? 0 : Math.max(0, startIndex);
     const end = includeAllPages
       ? dataArray.length - 1
       : Math.min(endIndex, dataArray.length - 1);
 
     for (let i = start; i <= end; i++) {
-      if (i >= dataArray.length) break;
       if (i > start) {
         pdf.addPage([width, height], width > height ? "landscape" : "portrait");
       }
@@ -155,9 +148,6 @@ export function ExportDialog({
         if (obj.get("isDynamic") && obj.get("dataSourceId") === dataSourceId) {
           const fieldPath = obj.get("fieldPath");
           if (fieldPath) {
-            console.log(
-              `Updating text: fieldPath=${fieldPath}, itemIndex=${i}`,
-            );
             editor.updateDynamicText(dataSourceId, fieldPath, i, sourceData);
           }
         }
@@ -166,46 +156,24 @@ export function ExportDialog({
       workspace.set({ visible: false });
       editor.canvas.renderAll();
 
-      await new Promise((resolve) => {
-        editor.canvas.renderAll();
-        setTimeout(resolve, 10);
-      });
-
+      await new Promise((resolve) => setTimeout(resolve, 10));
       editor.canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
 
       const dataURL = editor.canvas.toDataURL({
         format: "png",
         quality: 1,
-        left: 0,
-        top: 0,
-        width: width,
-        height: height,
+        left,
+        top,
+        width,
+        height,
       });
 
       pdf.addImage(dataURL, "PNG", 0, 0, width, height);
-      editor?.changeSize({
-        width: width,
-        height: height,
-      });
 
       workspace.set({ visible: true });
-      editor?.changeSize({
-        width: width,
-        height: height,
-      });
       editor.canvas.renderAll();
-      editor?.changeSize({
-        width: width,
-        height: height,
-      });
-      workspace.width = width;
-      workspace.height = height;
     }
 
-    // editor.canvas.loadFromJSON(originalJSON, () => {
-    //   editor.canvas.renderAll();
-    //   editor.autoZoom();
-    // });
     pdf.save(`${fileName}.pdf`);
   };
 

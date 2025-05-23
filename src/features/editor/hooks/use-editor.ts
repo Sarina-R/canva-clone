@@ -252,6 +252,7 @@ const buildEditor = ({
     canRedo,
     autoZoom,
     getWorkspace,
+    generateSaveOptions,
     zoomIn: () => {
       let zoomRatio = canvas.getZoom();
       zoomRatio += 0.05;

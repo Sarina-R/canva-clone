@@ -277,4 +277,13 @@ export interface Editor {
   getActiveStrokeWidth: () => number;
   getActiveStrokeDashArray: () => number[];
   selectedObjects: fabric.Object[];
+  generateSaveOptions: () => {
+    name: string;
+    format: string;
+    quality: number;
+    width: number;
+    height: number;
+    left: number;
+    top: number;
+  };
 }
