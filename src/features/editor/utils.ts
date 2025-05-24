@@ -3,13 +3,15 @@ import { fabric } from "fabric";
 import type { RGBColor } from "react-color";
 
 export function transformText(objects: any) {
-  if (!objects) return;
+  if (!Array.isArray(objects)) return;
 
   objects.forEach((item: any) => {
-    if (item.objects) {
+    if (Array.isArray(item.objects)) {
       transformText(item.objects);
     } else {
-      item.type === "text" && item.type === "textbox";
+      if (item.type === "text" || item.type === "textbox") {
+        console.log("item.type is text || textbox");
+      }
     }
   });
 }

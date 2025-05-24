@@ -166,7 +166,7 @@ const buildEditor = ({
       height: workspace.height,
       objects: canvas.toJSON(JSON_KEYS),
     };
-    await transformText(data.objects);
+    await transformText(data.objects?.objects || []);
     const fileString = `data:text/json;charset=utf-8,${encodeURIComponent(
       JSON.stringify(data, null, "\t"),
     )}`;
