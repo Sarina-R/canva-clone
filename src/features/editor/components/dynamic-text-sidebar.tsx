@@ -34,6 +34,9 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import QRCode from "react-qr-code";
+import { Canvg } from "canvg";
+import ReactDOMServer from "react-dom/server";
 
 type FieldNode = {
   path: string;
@@ -164,7 +167,6 @@ export const DynamicTextSidebar = ({
           timestamp: new Date().toISOString(),
         },
       });
-      console.log(dataSources);
       toast({
         title: "Success",
         description: "Data source refreshed successfully.",
@@ -183,10 +185,7 @@ export const DynamicTextSidebar = ({
 
   const getValueByPath = (obj: any, path: string, index: number) => {
     let current = obj;
-    const parts = path
-      .split(/[.[]/)
-      .map((part) => part.replace(/\]$/, ""))
-      .filter((part) => part !== "");
+    const parts = path.split(/\.|\[|\]/).filter((part) => part !== "");
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i];
       if (Array.isArray(current)) {
@@ -229,6 +228,81 @@ export const DynamicTextSidebar = ({
     }
 
     onChangeActiveTool("select");
+  };
+
+  const generateQRCode = async () => {
+    if (!editor?.addImage || !selectedSource || !selectedField) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please select a data source and field for the QR code.",
+      });
+      return;
+    }
+
+    const data = dataSources[selectedSource]?.data;
+    if (!data) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Selected data source contains no data.",
+      });
+      return;
+    }
+
+    const fieldValue = getValueByPath(data, selectedField, itemIndex);
+    if (fieldValue === "N/A") {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: `No value found for field "${selectedField}" at index ${itemIndex}.`,
+      });
+      return;
+    }
+
+    const qrValue = `https://avisengien/${fieldValue}`;
+
+    // Create a temporary DOM element to render the QR code
+    const qrContainer = document.createElement("div");
+    qrContainer.style.position = "absolute";
+    qrContainer.style.left = "-9999px";
+    document.body.appendChild(qrContainer);
+
+    // Render QR code to SVG
+    const qrCodeSvg = ReactDOMServer.renderToString(
+      <QRCode value={qrValue} size={100} />,
+    );
+
+    // Convert SVG to canvas using Canvg
+    const qrCanvas = document.createElement("canvas");
+    qrCanvas.width = 100; // Adjust size as needed
+    qrCanvas.height = 100;
+    const ctx = qrCanvas.getContext("2d");
+    if (ctx) {
+      const v = await Canvg.from(ctx, qrCodeSvg);
+      await v.render();
+      const qrDataURL = qrCanvas.toDataURL("image/png");
+
+      // Add QR code to canvas
+      editor.addImage(qrDataURL);
+
+      // Clean up
+      document.body.removeChild(qrContainer);
+
+      toast({
+        title: "Success",
+        description: "QR code added to canvas.",
+      });
+
+      onChangeActiveTool("select");
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description:
+          "Failed to generate QR code: Canvas context not available.",
+      });
+    }
   };
 
   const buildFieldTree = (data: any, basePath = ""): FieldNode[] => {
@@ -507,7 +581,7 @@ export const DynamicTextSidebar = ({
                     <Card>
                       <CardHeader>
                         <CardTitle className="text-sm font-medium">
-                          Add Dynamic Text
+                          Add Dynamic Content
                         </CardTitle>
                         <p className="text-xs text-muted-foreground">
                           {selectedSource} → {selectedField}
@@ -537,13 +611,22 @@ export const DynamicTextSidebar = ({
                             </div>
                           </div>
                         )}
-                        <Button
-                          className="w-full"
-                          onClick={handleAddDynamicText}
-                          disabled={isLoading}
-                        >
-                          Add to Canvas
-                        </Button>
+                        <div className="space-y-2">
+                          <Button
+                            className="w-full"
+                            onClick={handleAddDynamicText}
+                            disabled={isLoading}
+                          >
+                            Add to Canvas
+                          </Button>
+                          <Button
+                            className="w-full"
+                            onClick={generateQRCode}
+                            disabled={isLoading || !selectedField}
+                          >
+                            Generate QR Code
+                          </Button>
+                        </div>
                       </CardContent>
                     </Card>
                   )}

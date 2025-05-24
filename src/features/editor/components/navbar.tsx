@@ -213,7 +213,7 @@ export const Navbar = ({
                   className="flex items-center gap-x-2"
                   onClick={() => setShowExportDialog(true)}
                 >
-                  <FileText className="size-8" />
+                  <CiFileOn className="size-8" />
                   <div>
                     <p>Dynamic PDF</p>
                     <p className="text-xs text-muted-foreground">
