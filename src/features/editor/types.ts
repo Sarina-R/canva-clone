@@ -3,6 +3,25 @@ import { ITextboxOptions } from "fabric/fabric-impl";
 import * as material from "material-colors";
 import { Dispatch, SetStateAction } from "react";
 
+declare module "fabric" {
+  namespace fabric {
+    interface Object {
+      dataSourceId?: string;
+      fieldPath?: string;
+      itemIndex?: number;
+      isDynamic?: boolean;
+      name?: string;
+      gradientAngle?: number;
+      linkData?: any;
+      editable?: boolean;
+      extensionType?: string;
+      extension?: any;
+      originalText?: string;
+      magicSpells?: any;
+    }
+  }
+}
+
 export const JSON_KEYS = [
   "name",
   "gradientAngle",
@@ -12,12 +31,11 @@ export const JSON_KEYS = [
   "editable",
   "extensionType",
   "extension",
-  // 🌟 EASTER EGG: Add these dynamic text properties
   "isDynamic",
   "dataSourceId",
   "fieldPath",
-  "originalText", // Store the original template text
-  "magicSpells", // Our secret easter egg property
+  "originalText",
+  "magicSpells",
 ];
 
 export const filters = [
