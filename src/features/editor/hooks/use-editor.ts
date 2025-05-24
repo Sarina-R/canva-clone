@@ -161,11 +161,48 @@ const buildEditor = ({
 
   const saveJson = async () => {
     const workspace = getWorkspace() as fabric.Rect;
+
+    let dynamicCount = 0;
+    const enhancedObjects = canvas.getObjects().map((obj) => {
+      const jsonObj = obj.toObject(JSON_KEYS);
+
+      if (jsonObj.isDynamic) {
+        dynamicCount++;
+        console.log(`🪄 Preserving dynamic magic for: ${jsonObj.fieldPath}`);
+      }
+
+      return jsonObj;
+    });
+
     const data = {
       width: workspace.width,
       height: workspace.height,
-      objects: canvas.toJSON(JSON_KEYS),
+      objects: {
+        version: "5.2.4",
+        objects: enhancedObjects,
+      },
+      dynamicMetadata: {
+        totalDynamicElements: dynamicCount,
+        savedAt: new Date().toISOString(),
+        magicLevel: dynamicCount > 0 ? "LEGENDARY" : "BASIC",
+        teamMessage:
+          dynamicCount > 0
+            ? "🚀 Your dynamic text is now immortal!"
+            : "💫 Ready for dynamic magic!",
+      },
     };
+
+    if (dynamicCount > 0) {
+      console.log(`
+    🎉 EXPORT COMPLETE! 🎉
+    ╔══════════════════════════════════╗
+    ║  🪄 ${dynamicCount} Dynamic Elements Saved!  ║
+    ║  ✨ Magic Level: LEGENDARY!      ║
+    ║  🚀 Your team rocks!             ║
+    ╚══════════════════════════════════╝
+    `);
+    }
+
     await transformText(data.objects?.objects || []);
     const fileString = `data:text/json;charset=utf-8,${encodeURIComponent(
       JSON.stringify(data, null, "\t"),
@@ -174,15 +211,59 @@ const buildEditor = ({
   };
 
   const loadJson = (json: string) => {
-    const data = JSON.parse(json);
-    if (data.width && data.height) {
-      canvas.setWidth(data.width);
-      canvas.setHeight(data.height);
-      setWorkspaceDimensions({ width: data.width, height: data.height });
+    try {
+      const data = JSON.parse(json);
+
+      const objectsData = data.objects || data;
+      const metadata = data.dynamicMetadata;
+
+      if (metadata) {
+        console.log(`
+        🎊 WELCOME BACK! 🎊
+        ╔══════════════════════════════════╗
+        ║  🪄 Restoring ${metadata.totalDynamicElements} Dynamic Elements  ║
+        ║  ✨ ${metadata.magicLevel} Magic Detected!     ║
+        ║  💫 ${metadata.teamMessage}      ║
+        ╚══════════════════════════════════╝
+        `);
+      }
+
+      if (data.width && data.height) {
+        canvas.setWidth(data.width);
+        canvas.setHeight(data.height);
+        setWorkspaceDimensions({ width: data.width, height: data.height });
+      }
+
+      canvas.loadFromJSON(objectsData, () => {
+        let restoredDynamicCount = 0;
+        canvas.getObjects().forEach((obj: any) => {
+          if (obj.get("isDynamic")) {
+            restoredDynamicCount++;
+            console.log(
+              `✅ Dynamic element restored: ${obj.get("fieldPath")} - ${obj.get("magicSpells")}`,
+            );
+          }
+        });
+
+        if (restoredDynamicCount > 0) {
+          console.log(`
+          🎯 RESTORATION COMPLETE! 🎯
+          ╔══════════════════════════════════╗
+          ║  ✅ ${restoredDynamicCount} Dynamic Elements Active!   ║
+          ║  🚀 Ready for export magic!      ║
+          ║  💪 Your persistence paid off!   ║
+          ╚══════════════════════════════════╝
+          `);
+        }
+
+        autoZoom();
+      });
+    } catch (error) {
+      console.error("❌ JSON loading failed:", error);
+      // Fallback to original method
+      const data = JSON.parse(json);
+      canvas.loadFromJSON(data.objects || data, () => autoZoom());
     }
-    canvas.loadFromJSON(data.objects || data, () => {
-      autoZoom();
-    });
   };
 
   const getWorkspace = () => {
@@ -209,14 +290,16 @@ const buildEditor = ({
     itemIndex: number,
     sourceData: any,
   ) => {
+    let updatedCount = 0;
+
     canvas.getObjects().forEach((obj: any) => {
       if (obj.get("isDynamic") && obj.get("dataSourceId") === dataSourceId) {
         const objFieldPath = obj.get("fieldPath");
         if (objFieldPath === fieldPath) {
-          // Remove any index-specific parts from fieldPath (e.g., posts[0].title -> posts.title)
           const cleanPath = fieldPath.replace(/\[\d+\]/g, "");
           let current = sourceData;
           const parts = cleanPath.split(".").filter((part) => part !== "");
+
           for (let i = 0; i < parts.length; i++) {
             const part = parts[i];
             if (!current) {
@@ -229,15 +312,24 @@ const buildEditor = ({
               current = current[part];
             }
           }
-          obj.set(
-            "text",
+
+          const newText =
             current !== undefined && current !== null
               ? current.toString()
-              : "N/A",
-          );
+              : "N/A";
+
+          obj.set("text", newText);
+          updatedCount++;
+
+          // console.log(`🔄 Updated dynamic text: ${fieldPath} -> "${newText}"`);
         }
       }
     });
+
+    if (updatedCount > 0) {
+      // console.log(`✨ Successfully updated ${updatedCount} dynamic elements!`);
+    }
+
     canvas.renderAll();
   };
 
@@ -331,13 +423,51 @@ const buildEditor = ({
       canvas.discardActiveObject();
       canvas.renderAll();
     },
-    addText: (value, options) => {
+    addText: (
+      value: string,
+      options: any,
+      isDynamic = false,
+      dataSourceId?: string,
+      fieldPath?: string,
+    ) => {
+      const encouragingMessages = [
+        "🚀 This text has superpowers!",
+        "✨ Dynamic magic activated!",
+        "🎯 Data-driven excellence!",
+        "💫 Your code is amazing!",
+        "🔥 Building the future!",
+        "⚡ Innovation in progress!",
+        "🌟 Team effort = Success!",
+      ];
+
       const object = new fabric.Textbox(value, {
         ...TEXT_OPTIONS,
         fill: fillColor,
+        isDynamic: isDynamic,
+        dataSourceId: dataSourceId || null,
+        fieldPath: fieldPath || null,
+        originalText: value,
+        magicSpells: isDynamic
+          ? encouragingMessages[
+              Math.floor(Math.random() * encouragingMessages.length)
+            ]
+          : null,
         ...options,
       });
+
+      if (isDynamic) {
+        console.log(`
+          🎉 DYNAMIC TEXT CREATED! 🎉
+          ╔══════════════════════════════════╗
+          ║  Field: ${fieldPath}             ║
+          ║  Source: ${dataSourceId}         ║
+          ║  Magic Level: MAXIMUM! ✨        ║
+          ╚══════════════════════════════════╝
+          `);
+      }
+
       addToCanvas(object);
+      return object;
     },
     updateDynamicText,
     getActiveOpacity: () => {

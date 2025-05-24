@@ -25,28 +25,42 @@ export const useHistory = ({ canvas, saveCallback }: UseHistoryProps) => {
     return historyIndex < canvasHistory.current.length - 1;
   }, [historyIndex]);
 
-  const save = useCallback(
-    (skip = false) => {
-      if (!canvas) return;
+  const save = useCallback(() => {
+    if (!canvas) return;
 
-      const currentState = canvas.toJSON(JSON_KEYS);
-      const json = JSON.stringify(currentState);
+    // 🔍 Count dynamic elements before saving state
+    let dynamicCount = 0;
+    canvas.getObjects().forEach((obj: any) => {
+      if (obj.get("isDynamic")) dynamicCount++;
+    });
 
-      if (!skip && !skipSave.current) {
-        canvasHistory.current.push(json);
-        setHistoryIndex(canvasHistory.current.length - 1);
-      }
+    const currentState = JSON.stringify(canvas.toJSON(JSON_KEYS));
 
+    // 🎉 EASTER EGG: Log state saves with dynamic info
+    if (dynamicCount > 0) {
+      console.log(
+        `💾 State saved with ${dynamicCount} dynamic elements preserved!`,
+      );
+    }
+
+    // Your existing save logic here...
+    canvasHistory.current = [
+      ...canvasHistory.current.slice(0, historyIndex + 1),
+      currentState,
+    ];
+    setHistoryIndex(canvasHistory.current.length - 1);
+
+    if (saveCallback) {
       const workspace = canvas
         .getObjects()
-        .find((object) => object.name === "clip");
-      const height = workspace?.height || 0;
-      const width = workspace?.width || 0;
-
-      saveCallback?.({ json, height, width });
-    },
-    [canvas, saveCallback],
-  );
+        .find((obj) => obj.name === "clip") as fabric.Rect;
+      saveCallback({
+        json: currentState,
+        height: workspace?.height || 900,
+        width: workspace?.width || 1200,
+      });
+    }
+  }, [canvas, historyIndex, saveCallback]);
 
   const undo = useCallback(() => {
     if (canUndo()) {

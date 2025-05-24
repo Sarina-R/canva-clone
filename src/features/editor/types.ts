@@ -12,6 +12,12 @@ export const JSON_KEYS = [
   "editable",
   "extensionType",
   "extension",
+  // 🌟 EASTER EGG: Add these dynamic text properties
+  "isDynamic",
+  "dataSourceId",
+  "fieldPath",
+  "originalText", // Store the original template text
+  "magicSpells", // Our secret easter egg property
 ];
 
 export const filters = [
