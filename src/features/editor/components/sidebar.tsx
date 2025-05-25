@@ -9,6 +9,7 @@ import {
   Sparkles,
   Type,
   Database,
+  QrCode,
 } from "lucide-react";
 
 import { ActiveTool } from "@/features/editor/types";
@@ -42,6 +43,12 @@ export const Sidebar = ({ activeTool, onChangeActiveTool }: SidebarProps) => {
           onClick={() => onChangeActiveTool("text")}
         />
         <SidebarItem
+          icon={Database}
+          label="Dynamic"
+          isActive={activeTool === "dynamic-text"}
+          onClick={() => onChangeActiveTool("dynamic-text")}
+        />
+        <SidebarItem
           icon={Shapes}
           label="Shapes"
           isActive={activeTool === "shapes"}
@@ -60,10 +67,10 @@ export const Sidebar = ({ activeTool, onChangeActiveTool }: SidebarProps) => {
           onClick={() => onChangeActiveTool("ai")}
         />
         <SidebarItem
-          icon={Database}
-          label="Dynamic"
-          isActive={activeTool === "dynamic-text"}
-          onClick={() => onChangeActiveTool("dynamic-text")}
+          icon={QrCode}
+          label="QR Code"
+          isActive={activeTool === "QrCode"}
+          onClick={() => onChangeActiveTool("QrCode")}
         />
         <SidebarItem
           icon={Settings}

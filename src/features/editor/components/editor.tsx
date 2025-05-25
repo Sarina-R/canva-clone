@@ -29,6 +29,7 @@ import { TemplateSidebar } from "@/features/editor/components/template-sidebar";
 import { RemoveBgSidebar } from "@/features/editor/components/remove-bg-sidebar";
 import { SettingsSidebar } from "@/features/editor/components/settings-sidebar";
 import { DynamicTextSidebar } from "@/features/editor/components/dynamic-text-sidebar";
+import { QRCodeSidebar } from "./qr-code-sidebar";
 
 interface EditorProps {
   initialData: ResponseType["data"];
@@ -183,6 +184,11 @@ export const Editor = ({ initialData }: EditorProps) => {
             onChangeActiveTool={onChangeActiveTool}
           />
           <DynamicTextSidebar
+            editor={editor}
+            activeTool={activeTool}
+            onChangeActiveTool={onChangeActiveTool}
+          />
+          <QRCodeSidebar
             editor={editor}
             activeTool={activeTool}
             onChangeActiveTool={onChangeActiveTool}
