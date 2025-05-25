@@ -1,5 +1,7 @@
 "use client";
-
+import { fabric } from "fabric";
+import QRCodeSVG from "react-qr-code";
+import { renderToString } from "react-dom/server";
 import { useState, useEffect } from "react";
 import {
   Dialog,
@@ -111,6 +113,21 @@ export function ExportDialog({
     }
   };
 
+  const generateQRCodeSVG = async (value: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const qrSvg = renderToString(
+        <QRCodeSVG
+          value={value}
+          size={200}
+          bgColor="#ffffff"
+          fgColor="#000000"
+          level="Q"
+        />,
+      );
+      resolve(`<svg xmlns="http://www.w3.org/2000/svg">${qrSvg}</svg>`);
+    });
+  };
+
   const exportAsPDF = async () => {
     if (!editor?.canvas || !dataSourceId || !dataSources[dataSourceId]) {
       editor.savePdf();
@@ -144,19 +161,92 @@ export function ExportDialog({
         pdf.addPage([width, height], width > height ? "landscape" : "portrait");
       }
 
-      editor.canvas.getObjects().forEach((obj: any) => {
-        if (obj.get("isDynamic") && obj.get("dataSourceId") === dataSourceId) {
-          const fieldPath = obj.get("fieldPath");
-          if (fieldPath) {
-            editor.updateDynamicText(dataSourceId, fieldPath, i, sourceData);
-          }
+      const qrCodesInfo = editor.canvas
+        .getObjects()
+        .filter((obj: any) => obj.get("isDynamic") && obj.get("qrUrl"))
+        .map((obj: any) => ({
+          fieldPath: obj.get("fieldPath"),
+          left: obj.left,
+          top: obj.top,
+          scaleX: obj.scaleX,
+          scaleY: obj.scaleY,
+          angle: obj.angle,
+          originalObject: obj,
+        }));
+
+      const dynamicObjects = editor.canvas
+        .getObjects()
+        .filter(
+          (obj: any) =>
+            obj.get("isDynamic") &&
+            obj.get("dataSourceId") === dataSourceId &&
+            !obj.get("qrUrl"),
+        );
+
+      for (const obj of dynamicObjects) {
+        const fieldPath = obj.get("fieldPath");
+        if (fieldPath) {
+          editor.updateDynamicText(dataSourceId, fieldPath, i, sourceData);
         }
-      });
+      }
+
+      await Promise.all(
+        qrCodesInfo.map(async (qrInfo: any) => {
+          const { fieldPath, originalObject } = qrInfo;
+          if (!fieldPath) return;
+
+          const cleanPath = fieldPath.replace(/\[\d+\]/g, "");
+          let current = sourceData;
+          const parts = cleanPath.split(".").filter((part: any) => part !== "");
+
+          for (const part of parts) {
+            if (!current) break;
+            if (Array.isArray(current)) {
+              current = current[i]?.[part];
+            } else {
+              current = current[part];
+            }
+          }
+
+          const qrValue = current
+            ? `https://avisengien/${current.toString()}`
+            : "N/A";
+          if (qrValue === "N/A") return;
+
+          const svgString = await generateQRCodeSVG(qrValue);
+
+          return new Promise((resolve) => {
+            fabric.loadSVGFromString(svgString, (objects, options) => {
+              const qrGroup = fabric.util.groupSVGElements(objects, {
+                ...options,
+                left: qrInfo.left,
+                top: qrInfo.top,
+                scaleX: qrInfo.scaleX,
+                scaleY: qrInfo.scaleY,
+                angle: qrInfo.angle,
+                selectable: true,
+                hasControls: true,
+                dataSourceId,
+                fieldPath,
+                itemIndex: i,
+                isDynamic: true,
+                qrUrl: qrValue,
+              });
+
+              editor.canvas.remove(originalObject);
+              editor.canvas.add(qrGroup);
+              resolve(true);
+            });
+          });
+        }),
+      );
+
+      editor.canvas.renderAll();
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       workspace.set({ visible: false });
       editor.canvas.renderAll();
 
-      await new Promise((resolve) => setTimeout(resolve, 10));
       editor.canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
 
       const dataURL = editor.canvas.toDataURL({

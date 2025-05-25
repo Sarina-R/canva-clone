@@ -256,9 +256,21 @@ export interface Editor {
   enableDrawingMode: () => void;
   disableDrawingMode: () => void;
   onCopy: () => void;
+  updateDynamicQRCodes: (
+    dataSourceId: string,
+    fieldPath: string,
+    itemIndex: number,
+    sourceData: any,
+  ) => void;
   onPaste: () => void;
   changeImageFilter: (value: string) => void;
   addImage: (value: string) => void;
+  addQRCode: (
+    url: string,
+    dataSourceId: string,
+    fieldPath: string,
+    itemIndex: number,
+  ) => void;
   delete: () => void;
   changeFontSize: (value: number) => void;
   getActiveFontSize: () => number;

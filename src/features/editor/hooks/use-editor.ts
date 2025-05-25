@@ -84,6 +84,69 @@ const buildEditor = ({
     };
   };
 
+  const addQRCode = (
+    url: string,
+    dataSourceId: string,
+    fieldPath: string,
+    itemIndex: number,
+  ) => {
+    let current = url;
+    if (dataSourceId && fieldPath) {
+      const cleanPath = fieldPath.replace(/\[\d+\]/g, "");
+      const parts = cleanPath.split(".").filter((part) => part !== "");
+
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        if (!current) {
+          current = "N/A";
+          break;
+        }
+        if (Array.isArray(current)) {
+          current = current[itemIndex]?.[part];
+        } else {
+          current = current[part as any];
+        }
+      }
+    }
+
+    fabric.loadSVGFromString(
+      `<svg xmlns="http://www.w3.org/2000/svg">${
+        document.querySelector(`#qr-${dataSourceId}-${fieldPath}-${itemIndex}`)
+          ?.outerHTML
+      }</svg>`,
+      (objects, options) => {
+        const qrGroup = fabric.util.groupSVGElements(objects, {
+          ...options,
+          selectable: true,
+          hasControls: true,
+          dataSourceId,
+          fieldPath,
+          itemIndex,
+          isDynamic: true,
+          qrUrl: current,
+        });
+
+        qrGroup.scaleToWidth(200);
+        qrGroup.scaleToHeight(200);
+        center(qrGroup);
+        canvas.add(qrGroup);
+        canvas.setActiveObject(qrGroup);
+        canvas.renderAll();
+
+        if (dataSourceId && fieldPath) {
+          console.log(`
+          🎉 DYNAMIC QR CODE CREATED! 🎉
+          ╔══════════════════════════════════╗
+          ║  Field: ${fieldPath}             ║
+          ║  Source: ${dataSourceId}         ║
+          ║  Initial Value: ${current}       ║
+          ╚══════════════════════════════════╝
+          `);
+        }
+      },
+    );
+  };
+
   const savePdf = () => {
     const options = generateSaveOptions();
     const { width, height, left, top } = options;
@@ -333,6 +396,73 @@ const buildEditor = ({
     canvas.renderAll();
   };
 
+  // Add a new function to update QR codes when data changes
+  const updateDynamicQRCodes = (
+    dataSourceId: string,
+    fieldPath: string,
+    itemIndex: number,
+    sourceData: any,
+  ) => {
+    let updatedCount = 0;
+
+    canvas.getObjects().forEach((obj: any) => {
+      if (obj.get("isDynamic") && obj.get("dataSourceId") === dataSourceId) {
+        const objFieldPath = obj.get("fieldPath");
+        if (objFieldPath === fieldPath) {
+          const cleanPath = fieldPath.replace(/\[\d+\]/g, "");
+          let current = sourceData;
+          const parts = cleanPath.split(".").filter((part) => part !== "");
+
+          for (let i = 0; i < parts.length; i++) {
+            const part = parts[i];
+            if (!current) {
+              return;
+            }
+            if (Array.isArray(current)) {
+              current = current[itemIndex]?.[part];
+            } else {
+              current = current[part];
+            }
+          }
+
+          const newValue =
+            current !== undefined && current !== null
+              ? current.toString()
+              : "N/A";
+
+          obj.set("qrUrl", newValue);
+
+          // Regenerate QR code with new value
+          const qrElement = document.querySelector(
+            `#qr-${dataSourceId}-${fieldPath}-${itemIndex}`,
+          );
+          if (qrElement) {
+            fabric.loadSVGFromString(
+              `<svg xmlns="http://www.w3.org/2000/svg">${qrElement.outerHTML}</svg>`,
+              (objects, options) => {
+                const newQrGroup = fabric.util.groupSVGElements(objects, {
+                  ...obj.toObject(),
+                  left: obj.left,
+                  top: obj.top,
+                  scaleX: obj.scaleX,
+                  scaleY: obj.scaleY,
+                });
+                canvas.remove(obj);
+                canvas.add(newQrGroup);
+                canvas.renderAll();
+              },
+            );
+          }
+          updatedCount++;
+        }
+      }
+    });
+
+    if (updatedCount > 0) {
+      console.log(`✨ Successfully updated ${updatedCount} dynamic QR codes!`);
+    }
+  };
+
   return {
     savePdf,
     savePng,
@@ -345,6 +475,7 @@ const buildEditor = ({
     autoZoom,
     getWorkspace,
     generateSaveOptions,
+    addQRCode,
     zoomIn: () => {
       let zoomRatio = canvas.getZoom();
       zoomRatio += 0.05;
@@ -470,6 +601,7 @@ const buildEditor = ({
       return object;
     },
     updateDynamicText,
+    updateDynamicQRCodes,
     getActiveOpacity: () => {
       const selectedObject = selectedObjects[0];
       if (!selectedObject) {
