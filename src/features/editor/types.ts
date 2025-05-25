@@ -18,6 +18,8 @@ declare module "fabric" {
       extension?: any;
       originalText?: string;
       magicSpells?: any;
+      qrUrl?: string;
+      qrSvgString?: string;
     }
   }
 }
@@ -36,6 +38,8 @@ export const JSON_KEYS = [
   "fieldPath",
   "originalText",
   "magicSpells",
+  "qrUrl",
+  "qrSvgString",
 ];
 
 export const filters = [

@@ -161,27 +161,10 @@ export function ExportDialog({
         pdf.addPage([width, height], width > height ? "landscape" : "portrait");
       }
 
-      const qrCodesInfo = editor.canvas
-        .getObjects()
-        .filter((obj: any) => obj.get("isDynamic") && obj.get("qrUrl"))
-        .map((obj: any) => ({
-          fieldPath: obj.get("fieldPath"),
-          left: obj.left,
-          top: obj.top,
-          scaleX: obj.scaleX,
-          scaleY: obj.scaleY,
-          angle: obj.angle,
-          originalObject: obj,
-        }));
-
+      // Update dynamic text
       const dynamicObjects = editor.canvas
         .getObjects()
-        .filter(
-          (obj: any) =>
-            obj.get("isDynamic") &&
-            obj.get("dataSourceId") === dataSourceId &&
-            !obj.get("qrUrl"),
-        );
+        .filter((obj: any) => obj.get("isDynamic") && !obj.get("qrUrl"));
 
       for (const obj of dynamicObjects) {
         const fieldPath = obj.get("fieldPath");
@@ -190,63 +173,29 @@ export function ExportDialog({
         }
       }
 
-      await Promise.all(
-        qrCodesInfo.map(async (qrInfo: any) => {
-          const { fieldPath, originalObject } = qrInfo;
-          if (!fieldPath) return;
+      // Update dynamic QR codes
+      const qrObjects = editor.canvas
+        .getObjects()
+        .filter((obj: any) => obj.get("isDynamic") && obj.get("qrUrl"));
 
-          const cleanPath = fieldPath.replace(/\[\d+\]/g, "");
-          let current = sourceData;
-          const parts = cleanPath.split(".").filter((part: any) => part !== "");
+      for (const obj of qrObjects) {
+        const fieldPath = obj.get("fieldPath");
+        if (fieldPath) {
+          await editor.updateDynamicQRCodes(
+            dataSourceId,
+            fieldPath,
+            i,
+            sourceData,
+          );
+        }
+      }
 
-          for (const part of parts) {
-            if (!current) break;
-            if (Array.isArray(current)) {
-              current = current[i]?.[part];
-            } else {
-              current = current[part];
-            }
-          }
-
-          const qrValue = current
-            ? `https://avisengien/${current.toString()}`
-            : "N/A";
-          if (qrValue === "N/A") return;
-
-          const svgString = await generateQRCodeSVG(qrValue);
-
-          return new Promise((resolve) => {
-            fabric.loadSVGFromString(svgString, (objects, options) => {
-              const qrGroup = fabric.util.groupSVGElements(objects, {
-                ...options,
-                left: qrInfo.left,
-                top: qrInfo.top,
-                scaleX: qrInfo.scaleX,
-                scaleY: qrInfo.scaleY,
-                angle: qrInfo.angle,
-                selectable: true,
-                hasControls: true,
-                dataSourceId,
-                fieldPath,
-                itemIndex: i,
-                isDynamic: true,
-                qrUrl: qrValue,
-              });
-
-              editor.canvas.remove(originalObject);
-              editor.canvas.add(qrGroup);
-              resolve(true);
-            });
-          });
-        }),
-      );
-
+      // Wait for canvas to update
+      await new Promise((resolve) => setTimeout(resolve, 100));
       editor.canvas.renderAll();
-      await new Promise((resolve) => setTimeout(resolve, 500));
 
+      // Hide workspace and capture page
       workspace.set({ visible: false });
-      editor.canvas.renderAll();
-
       editor.canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
 
       const dataURL = editor.canvas.toDataURL({
@@ -260,11 +209,13 @@ export function ExportDialog({
 
       pdf.addImage(dataURL, "PNG", 0, 0, width, height);
 
+      // Restore workspace visibility
       workspace.set({ visible: true });
       editor.canvas.renderAll();
     }
 
     pdf.save(`${fileName}.pdf`);
+    editor.autoZoom();
   };
 
   return (

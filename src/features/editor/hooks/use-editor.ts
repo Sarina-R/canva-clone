@@ -1,5 +1,5 @@
 import { fabric } from "fabric";
-import { useCallback, useState, useMemo, useRef } from "react";
+import React, { useCallback, useState, useMemo, useRef } from "react";
 
 import {
   Editor,
@@ -58,6 +58,20 @@ const buildEditor = ({
   workspaceDimensions,
   setWorkspaceDimensions,
 }: BuildEditorProps): Editor => {
+  const initializeCanvas = () => {
+    const savedState = localStorage.getItem("canvasState");
+    if (savedState) {
+      try {
+        console.log("🎉 Restoring canvas state from localStorage");
+        loadJson(savedState);
+      } catch (error) {
+        console.error("❌ Failed to restore canvas state:", error);
+      }
+    }
+  };
+
+  initializeCanvas();
+
   const generateSaveOptions = () => {
     const workspace = getWorkspace() as fabric.Rect;
     const width =
@@ -109,42 +123,47 @@ const buildEditor = ({
       }
     }
 
-    fabric.loadSVGFromString(
-      `<svg xmlns="http://www.w3.org/2000/svg">${
-        document.querySelector(`#qr-${dataSourceId}-${fieldPath}-${itemIndex}`)
-          ?.outerHTML
-      }</svg>`,
-      (objects, options) => {
-        const qrGroup = fabric.util.groupSVGElements(objects, {
-          ...options,
-          selectable: true,
-          hasControls: true,
-          dataSourceId,
-          fieldPath,
-          itemIndex,
-          isDynamic: true,
-          qrUrl: current,
-        });
-
-        qrGroup.scaleToWidth(200);
-        qrGroup.scaleToHeight(200);
-        center(qrGroup);
-        canvas.add(qrGroup);
-        canvas.setActiveObject(qrGroup);
-        canvas.renderAll();
-
-        if (dataSourceId && fieldPath) {
-          console.log(`
-          🎉 DYNAMIC QR CODE CREATED! 🎉
-          ╔══════════════════════════════════╗
-          ║  Field: ${fieldPath}             ║
-          ║  Source: ${dataSourceId}         ║
-          ║  Initial Value: ${current}       ║
-          ╚══════════════════════════════════╝
-          `);
-        }
-      },
+    const qrElement = document.querySelector(
+      `#qr-${dataSourceId}-${fieldPath}-${itemIndex}`,
     );
+    if (!qrElement) {
+      console.error("QR code element not found");
+      return;
+    }
+
+    const svgString = `<svg xmlns="http://www.w3.org/2000/svg">${qrElement.outerHTML}</svg>`;
+
+    fabric.loadSVGFromString(svgString, (objects, options) => {
+      const qrGroup = fabric.util.groupSVGElements(objects, {
+        ...options,
+        selectable: true,
+        hasControls: true,
+        dataSourceId,
+        fieldPath,
+        itemIndex,
+        isDynamic: true,
+        qrUrl: current,
+        qrSvgString: qrElement.outerHTML, // Store the SVG string
+      });
+
+      qrGroup.scaleToWidth(200);
+      qrGroup.scaleToHeight(200);
+      center(qrGroup);
+      canvas.add(qrGroup);
+      canvas.setActiveObject(qrGroup);
+      canvas.renderAll();
+
+      if (dataSourceId && fieldPath) {
+        console.log(`
+        🎉 DYNAMIC QR CODE CREATED! 🎉
+        ╔══════════════════════════════════╗
+        ║  Field: ${fieldPath}             ║
+        ║  Source: ${dataSourceId}         ║
+        ║  Initial Value: ${current}       ║
+        ╚══════════════════════════════════╝
+        `);
+      }
+    });
   };
 
   const savePdf = () => {
@@ -224,18 +243,24 @@ const buildEditor = ({
 
   const saveJson = async () => {
     const workspace = getWorkspace() as fabric.Rect;
-
     let dynamicCount = 0;
-    const enhancedObjects = canvas.getObjects().map((obj) => {
-      const jsonObj = obj.toObject(JSON_KEYS);
 
-      if (jsonObj.isDynamic) {
-        dynamicCount++;
-        console.log(`🪄 Preserving dynamic magic for: ${jsonObj.fieldPath}`);
-      }
+    const enhancedObjects = await Promise.all(
+      canvas.getObjects().map(async (obj) => {
+        const jsonObj = obj.toObject(JSON_KEYS);
 
-      return jsonObj;
-    });
+        if (jsonObj.isDynamic) {
+          dynamicCount++;
+          if (jsonObj.qrUrl) {
+            console.log(
+              `🔄 Saving QR code state for: ${jsonObj.fieldPath} - Index: ${jsonObj.itemIndex}`,
+            );
+          }
+        }
+
+        return jsonObj;
+      }),
+    );
 
     const data = {
       width: workspace.width,
@@ -250,20 +275,20 @@ const buildEditor = ({
         magicLevel: dynamicCount > 0 ? "LEGENDARY" : "BASIC",
         teamMessage:
           dynamicCount > 0
-            ? "🚀 Your dynamic text is now immortal!"
+            ? "🚀 Your dynamic elements are now immortal!"
             : "💫 Ready for dynamic magic!",
       },
     };
 
     if (dynamicCount > 0) {
       console.log(`
-    🎉 EXPORT COMPLETE! 🎉
-    ╔══════════════════════════════════╗
-    ║  🪄 ${dynamicCount} Dynamic Elements Saved!  ║
-    ║  ✨ Magic Level: LEGENDARY!      ║
-    ║  🚀 Your team rocks!             ║
-    ╚══════════════════════════════════╝
-    `);
+      🎉 EXPORT COMPLETE! 🎉
+      ╔══════════════════════════════════╗
+      ║  🪄 ${dynamicCount} Dynamic Elements Saved!  ║
+      ║  ✨ Magic Level: LEGENDARY!      ║
+      ║  🚀 Your team rocks!             ║
+      ╚══════════════════════════════════╝
+      `);
     }
 
     await transformText(data.objects?.objects || []);
@@ -271,23 +296,25 @@ const buildEditor = ({
       JSON.stringify(data, null, "\t"),
     )}`;
     downloadFile(fileString, "json");
+
+    // Save to localStorage for persistence across refresh
+    localStorage.setItem("canvasState", JSON.stringify(data));
   };
 
   const loadJson = (json: string) => {
     try {
       const data = JSON.parse(json);
-
       const objectsData = data.objects || data;
       const metadata = data.dynamicMetadata;
 
       if (metadata) {
         console.log(`
-        🎊 WELCOME BACK! 🎊
-        ╔══════════════════════════════════╗
-        ║  🪄 Restoring ${metadata.totalDynamicElements} Dynamic Elements  ║
-        ║  ✨ ${metadata.magicLevel} Magic Detected!     ║
-        ║  💫 ${metadata.teamMessage}      ║
-        ╚══════════════════════════════════╝
+          🎊 WELCOME BACK! 🎊
+          ╔══════════════════════════════════╗
+          ║  🪄 Restoring ${metadata.totalDynamicElements} Dynamic Elements  ║
+          ║  ✨ ${metadata.magicLevel} Magic Detected!     ║
+          ║  💫 ${metadata.teamMessage}      ║
+          ╚══════════════════════════════════╗
         `);
       }
 
@@ -297,28 +324,43 @@ const buildEditor = ({
         setWorkspaceDimensions({ width: data.width, height: data.height });
       }
 
-      canvas.loadFromJSON(objectsData, () => {
+      canvas.loadFromJSON(objectsData, async () => {
         let restoredDynamicCount = 0;
-        canvas.getObjects().forEach((obj: any) => {
+        const dynamicObjects = canvas
+          .getObjects()
+          .filter((obj: any) => obj.get("isDynamic"));
+
+        for (const obj of dynamicObjects) {
           if (obj.get("isDynamic")) {
             restoredDynamicCount++;
-            console.log(
-              `✅ Dynamic element restored: ${obj.get("fieldPath")} - ${obj.get("magicSpells")}`,
-            );
+            if (obj.get("qrUrl")) {
+              const qrUrl = obj.get("qrUrl");
+              const dataSourceId = obj.get("dataSourceId");
+              const fieldPath = obj.get("fieldPath");
+              const itemIndex = obj.get("itemIndex");
+
+              // Recreate QR code
+              await editor.addQRCode(qrUrl, dataSourceId, fieldPath, itemIndex);
+
+              console.log(
+                `✅ Dynamic QR code restored: ${fieldPath} - ${qrUrl}`,
+              );
+            }
           }
-        });
+        }
 
         if (restoredDynamicCount > 0) {
           console.log(`
-          🎯 RESTORATION COMPLETE! 🎯
-          ╔══════════════════════════════════╗
-          ║  ✅ ${restoredDynamicCount} Dynamic Elements Active!   ║
-          ║  🚀 Ready for export magic!      ║
-          ║  💪 Your persistence paid off!   ║
-          ╚══════════════════════════════════╝
+            🎯 RESTORATION COMPLETE! 🎯
+            ╔══════════════════════════════════╗
+            ║  ✅ ${restoredDynamicCount} Dynamic Elements Active!   ║
+            ║  🚀 Ready for export magic!      ║
+            ║  💪 Your persistence paid off!   ║
+            ╚══════════════════════════════════╝
           `);
         }
 
+        canvas.renderAll();
         autoZoom();
       });
     } catch (error) {
@@ -397,7 +439,7 @@ const buildEditor = ({
   };
 
   // Add a new function to update QR codes when data changes
-  const updateDynamicQRCodes = (
+  const updateDynamicQRCodes = async (
     dataSourceId: string,
     fieldPath: string,
     itemIndex: number,
@@ -405,62 +447,114 @@ const buildEditor = ({
   ) => {
     let updatedCount = 0;
 
-    canvas.getObjects().forEach((obj: any) => {
-      if (obj.get("isDynamic") && obj.get("dataSourceId") === dataSourceId) {
-        const objFieldPath = obj.get("fieldPath");
-        if (objFieldPath === fieldPath) {
-          const cleanPath = fieldPath.replace(/\[\d+\]/g, "");
-          let current = sourceData;
-          const parts = cleanPath.split(".").filter((part) => part !== "");
+    // Get QR code objects for this specific data source and field
+    const qrObjects = canvas
+      .getObjects()
+      .filter(
+        (obj: any) =>
+          obj.get("isDynamic") &&
+          obj.get("dataSourceId") === dataSourceId &&
+          obj.get("fieldPath") === fieldPath,
+      );
 
-          for (let i = 0; i < parts.length; i++) {
-            const part = parts[i];
-            if (!current) {
-              return;
-            }
-            if (Array.isArray(current)) {
-              current = current[itemIndex]?.[part];
-            } else {
-              current = current[part];
-            }
-          }
+    for (const obj of qrObjects) {
+      // Get value for current index
+      const cleanPath = fieldPath.replace(/\[\d+\]/g, "");
+      let current = sourceData;
+      const parts = cleanPath.split(".").filter((part) => part !== "");
 
-          const newValue =
-            current !== undefined && current !== null
-              ? current.toString()
-              : "N/A";
+      for (const part of parts) {
+        if (!current) break;
+        if (Array.isArray(current)) {
+          current = current[itemIndex]?.[part];
+        } else {
+          current = current[part];
+        }
+      }
 
-          obj.set("qrUrl", newValue);
+      if (!current) continue;
 
-          // Regenerate QR code with new value
-          const qrElement = document.querySelector(
-            `#qr-${dataSourceId}-${fieldPath}-${itemIndex}`,
-          );
-          if (qrElement) {
-            fabric.loadSVGFromString(
-              `<svg xmlns="http://www.w3.org/2000/svg">${qrElement.outerHTML}</svg>`,
-              (objects, options) => {
-                const newQrGroup = fabric.util.groupSVGElements(objects, {
-                  ...obj.toObject(),
+      const newValue = `https://avisengien/${current.toString()}`;
+
+      // Create temporary container
+      const tempQrContainer = document.createElement("div");
+      tempQrContainer.style.position = "absolute";
+      tempQrContainer.style.visibility = "hidden";
+      document.body.appendChild(tempQrContainer);
+
+      try {
+        const QRCodeSVG = (await import("react-qr-code")).default;
+        const ReactDOM = await import("react-dom");
+
+        await new Promise<void>((resolve) => {
+          ReactDOM.render(
+            React.createElement(QRCodeSVG, {
+              value: newValue,
+              size: 200,
+              bgColor: "#ffffff",
+              fgColor: "#000000",
+              level: "Q",
+            }),
+            tempQrContainer,
+            async () => {
+              const svgElement = tempQrContainer.querySelector("svg");
+              if (svgElement) {
+                const svgString = new XMLSerializer().serializeToString(
+                  svgElement,
+                );
+
+                // Store current object properties
+                const currentProps = {
                   left: obj.left,
                   top: obj.top,
                   scaleX: obj.scaleX,
                   scaleY: obj.scaleY,
+                  angle: obj.angle,
+                };
+
+                // Load new SVG
+                await new Promise<void>((resolveInner) => {
+                  fabric.loadSVGFromString(
+                    `<svg xmlns="http://www.w3.org/2000/svg">${svgString}</svg>`,
+                    (objects, options) => {
+                      const qrGroup = fabric.util.groupSVGElements(objects, {
+                        ...currentProps,
+                        selectable: true,
+                        hasControls: true,
+                        dataSourceId,
+                        fieldPath,
+                        itemIndex,
+                        isDynamic: true,
+                        qrUrl: newValue,
+                        qrSvgString: svgString,
+                      });
+
+                      canvas.remove(obj);
+                      canvas.add(qrGroup);
+                      canvas.renderAll();
+                      updatedCount++;
+                      resolveInner();
+                    },
+                  );
                 });
-                canvas.remove(obj);
-                canvas.add(newQrGroup);
-                canvas.renderAll();
-              },
-            );
-          }
-          updatedCount++;
-        }
+              }
+              resolve();
+            },
+          );
+        });
+      } finally {
+        document.body.removeChild(tempQrContainer);
       }
-    });
+    }
 
     if (updatedCount > 0) {
-      console.log(`✨ Successfully updated ${updatedCount} dynamic QR codes!`);
+      console.log(
+        `✨ Updated ${updatedCount} QR codes for index ${itemIndex} with new data`,
+      );
+      canvas.renderAll();
     }
+
+    return updatedCount;
   };
 
   return {

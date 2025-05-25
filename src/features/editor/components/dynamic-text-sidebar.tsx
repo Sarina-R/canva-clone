@@ -232,7 +232,6 @@ export const DynamicTextSidebar = ({
     onChangeActiveTool("select");
   };
 
-  // New function to handle QR code generation
   const handleAddQRCode = () => {
     if (!editor || !selectedSource || !selectedField) return;
 
@@ -250,22 +249,23 @@ export const DynamicTextSidebar = ({
     }
 
     const qrUrl = `https://avisengien/${userId}`;
+    const qrId = `qr-${selectedSource}-${selectedField.replace(/\[\d+\]/g, "")}-${itemIndex}`;
 
-    // Create a temporary container to render QR code SVG
     const qrContainer = document.createElement("div");
+    qrContainer.id = qrId;
     qrContainer.style.position = "absolute";
     qrContainer.style.visibility = "hidden";
     document.body.appendChild(qrContainer);
 
-    // Render QRCodeSVG to get the SVG string
     import("react-dom").then((ReactDOM) => {
       ReactDOM.render(
         <QRCodeSVG
           value={qrUrl}
-          size={200} // Adjust size as needed
+          size={200}
           bgColor="#ffffff"
           fgColor="#000000"
           level="Q"
+          id={qrId}
         />,
         qrContainer,
         () => {
@@ -280,10 +280,8 @@ export const DynamicTextSidebar = ({
             return;
           }
 
-          // Get SVG string
           const svgString = new XMLSerializer().serializeToString(svgElement);
 
-          // Load SVG into Fabric.js
           fabric.loadSVGFromString(svgString, (objects, options) => {
             const qrGroup = fabric.util.groupSVGElements(objects, {
               ...options,
@@ -293,11 +291,11 @@ export const DynamicTextSidebar = ({
               fieldPath: selectedField.replace(/\[\d+\]/g, ""),
               itemIndex: itemIndex,
               isDynamic: true,
-              qrUrl: qrUrl, // Store the URL for reference
+              qrUrl: qrUrl,
+              qrSvgString: svgString,
             });
 
-            // Scale and position the QR code
-            qrGroup.scaleToWidth(200); // Match the QRCodeSVG size
+            qrGroup.scaleToWidth(200);
             qrGroup.scaleToHeight(200);
             editor.canvas.centerObject(qrGroup);
             editor.canvas.add(qrGroup);
