@@ -297,7 +297,6 @@ const buildEditor = ({
     )}`;
     downloadFile(fileString, "json");
 
-    // Save to localStorage for persistence across refresh
     localStorage.setItem("canvasState", JSON.stringify(data));
   };
 
@@ -339,9 +338,6 @@ const buildEditor = ({
               const fieldPath = obj.get("fieldPath");
               const itemIndex = obj.get("itemIndex");
 
-              // Recreate QR code
-              await editor.addQRCode(qrUrl, dataSourceId, fieldPath, itemIndex);
-
               console.log(
                 `✅ Dynamic QR code restored: ${fieldPath} - ${qrUrl}`,
               );
@@ -365,7 +361,6 @@ const buildEditor = ({
       });
     } catch (error) {
       console.error("❌ JSON loading failed:", error);
-      // Fallback to original method
       const data = JSON.parse(json);
       canvas.loadFromJSON(data.objects || data, () => autoZoom());
     }
@@ -438,7 +433,6 @@ const buildEditor = ({
     canvas.renderAll();
   };
 
-  // Add a new function to update QR codes when data changes
   const updateDynamicQRCodes = async (
     dataSourceId: string,
     fieldPath: string,
@@ -447,18 +441,17 @@ const buildEditor = ({
   ) => {
     let updatedCount = 0;
 
-    // Get QR code objects for this specific data source and field
     const qrObjects = canvas
       .getObjects()
       .filter(
         (obj: any) =>
           obj.get("isDynamic") &&
           obj.get("dataSourceId") === dataSourceId &&
-          obj.get("fieldPath") === fieldPath,
+          obj.get("fieldPath") === fieldPath &&
+          (obj.get("qrUrl") || obj.get("qrSvgString")),
       );
 
     for (const obj of qrObjects) {
-      // Get value for current index
       const cleanPath = fieldPath.replace(/\[\d+\]/g, "");
       let current = sourceData;
       const parts = cleanPath.split(".").filter((part) => part !== "");
@@ -476,7 +469,6 @@ const buildEditor = ({
 
       const newValue = `https://avisengien/${current.toString()}`;
 
-      // Create temporary container
       const tempQrContainer = document.createElement("div");
       tempQrContainer.style.position = "absolute";
       tempQrContainer.style.visibility = "hidden";
@@ -503,30 +495,29 @@ const buildEditor = ({
                   svgElement,
                 );
 
-                // Store current object properties
                 const currentProps = {
                   left: obj.left,
                   top: obj.top,
                   scaleX: obj.scaleX,
                   scaleY: obj.scaleY,
                   angle: obj.angle,
+                  dataSourceId,
+                  fieldPath,
+                  itemIndex,
+                  isDynamic: true,
+                  qrUrl: newValue,
+                  qrSvgString: svgString,
                 };
 
-                // Load new SVG
                 await new Promise<void>((resolveInner) => {
                   fabric.loadSVGFromString(
                     `<svg xmlns="http://www.w3.org/2000/svg">${svgString}</svg>`,
                     (objects, options) => {
                       const qrGroup = fabric.util.groupSVGElements(objects, {
+                        ...options,
                         ...currentProps,
                         selectable: true,
                         hasControls: true,
-                        dataSourceId,
-                        fieldPath,
-                        itemIndex,
-                        isDynamic: true,
-                        qrUrl: newValue,
-                        qrSvgString: svgString,
                       });
 
                       canvas.remove(obj);

@@ -161,40 +161,44 @@ export function ExportDialog({
         pdf.addPage([width, height], width > height ? "landscape" : "portrait");
       }
 
-      // Update dynamic text
-      const dynamicObjects = editor.canvas
+      const dynamicTextObjects = editor.canvas
         .getObjects()
-        .filter((obj: any) => obj.get("isDynamic") && !obj.get("qrUrl"));
+        .filter(
+          (obj: any) =>
+            obj.get("isDynamic") &&
+            obj.type === "textbox" &&
+            !obj.get("qrUrl") &&
+            obj.get("fieldPath"),
+        );
 
-      for (const obj of dynamicObjects) {
+      for (const obj of dynamicTextObjects) {
         const fieldPath = obj.get("fieldPath");
-        if (fieldPath) {
-          editor.updateDynamicText(dataSourceId, fieldPath, i, sourceData);
-        }
+        editor.updateDynamicText(dataSourceId, fieldPath, i, sourceData);
       }
 
-      // Update dynamic QR codes
       const qrObjects = editor.canvas
         .getObjects()
-        .filter((obj: any) => obj.get("isDynamic") && obj.get("qrUrl"));
+        .filter(
+          (obj: any) =>
+            obj.get("isDynamic") &&
+            obj.get("qrUrl") &&
+            obj.get("fieldPath") &&
+            obj.type !== "textbox",
+        );
 
       for (const obj of qrObjects) {
         const fieldPath = obj.get("fieldPath");
-        if (fieldPath) {
-          await editor.updateDynamicQRCodes(
-            dataSourceId,
-            fieldPath,
-            i,
-            sourceData,
-          );
-        }
+        await editor.updateDynamicQRCodes(
+          dataSourceId,
+          fieldPath,
+          i,
+          sourceData,
+        );
       }
 
-      // Wait for canvas to update
       await new Promise((resolve) => setTimeout(resolve, 100));
       editor.canvas.renderAll();
 
-      // Hide workspace and capture page
       workspace.set({ visible: false });
       editor.canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
 
@@ -209,7 +213,6 @@ export function ExportDialog({
 
       pdf.addImage(dataURL, "PNG", 0, 0, width, height);
 
-      // Restore workspace visibility
       workspace.set({ visible: true });
       editor.canvas.renderAll();
     }
