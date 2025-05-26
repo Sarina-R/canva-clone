@@ -58,6 +58,9 @@ const buildEditor = ({
   workspaceDimensions,
   setWorkspaceDimensions,
 }: BuildEditorProps): Editor => {
+  let backgroundImageObject: fabric.Image | null = null;
+  let isBackgroundImageLocked = false;
+
   const initializeCanvas = () => {
     const savedState = localStorage.getItem("canvasState");
     if (savedState) {
@@ -258,6 +261,12 @@ const buildEditor = ({
           }
         }
 
+        // Add background image specific properties
+        if (obj.name === "backgroundImage") {
+          jsonObj.isBackgroundImage = true;
+          jsonObj.isLocked = isBackgroundImageLocked;
+        }
+
         return jsonObj;
       }),
     );
@@ -268,6 +277,10 @@ const buildEditor = ({
       objects: {
         version: "5.2.4",
         objects: enhancedObjects,
+      },
+      backgroundImageState: {
+        hasBackgroundImage: !!backgroundImageObject,
+        isLocked: isBackgroundImageLocked,
       },
       dynamicMetadata: {
         totalDynamicElements: dynamicCount,
@@ -300,11 +313,13 @@ const buildEditor = ({
     localStorage.setItem("canvasState", JSON.stringify(data));
   };
 
+  // Enhanced loadJson method to restore background image state
   const loadJson = (json: string) => {
     try {
       const data = JSON.parse(json);
       const objectsData = data.objects || data;
       const metadata = data.dynamicMetadata;
+      const backgroundState = data.backgroundImageState;
 
       if (metadata) {
         console.log(`
@@ -313,7 +328,7 @@ const buildEditor = ({
           ║  🪄 Restoring ${metadata.totalDynamicElements} Dynamic Elements  ║
           ║  ✨ ${metadata.magicLevel} Magic Detected!     ║
           ║  💫 ${metadata.teamMessage}      ║
-          ╚══════════════════════════════════╗
+          ╚══════════════════════════════════╝
         `);
       }
 
@@ -325,6 +340,22 @@ const buildEditor = ({
 
       canvas.loadFromJSON(objectsData, async () => {
         let restoredDynamicCount = 0;
+
+        // Restore background image state
+        const backgroundImg = canvas
+          .getObjects()
+          .find((obj: any) => obj.name === "backgroundImage");
+        if (backgroundImg && backgroundState) {
+          backgroundImageObject = backgroundImg as fabric.Image;
+          isBackgroundImageLocked = backgroundState.isLocked || false;
+
+          // Apply lock state
+          setBackgroundImageLock(isBackgroundImageLocked);
+          console.log(
+            `✅ Background image restored (${isBackgroundImageLocked ? "locked" : "unlocked"})`,
+          );
+        }
+
         const dynamicObjects = canvas
           .getObjects()
           .filter((obj: any) => obj.get("isDynamic"));
@@ -548,6 +579,143 @@ const buildEditor = ({
     return updatedCount;
   };
 
+  const setBackgroundImage = (imageUrl: string, locked = false) => {
+    // Remove existing background image if any
+    if (backgroundImageObject) {
+      canvas.remove(backgroundImageObject);
+      backgroundImageObject = null;
+    }
+
+    fabric.Image.fromURL(
+      imageUrl,
+      (img) => {
+        const workspace = getWorkspace();
+        if (!workspace) return;
+
+        // Scale image to fit workspace while maintaining aspect ratio
+        const workspaceWidth = workspace.width || 900;
+        const workspaceHeight = workspace.height || 1200;
+
+        // Set image to contain within workspace
+        img.scaleToWidth(workspaceWidth);
+        if (img.getScaledHeight() > workspaceHeight) {
+          img.scaleToHeight(workspaceHeight);
+        }
+
+        // Center the image
+        img.set({
+          left: workspace.left || 0,
+          top: workspace.top || 0,
+          selectable: !locked,
+          evented: !locked,
+          hasControls: !locked,
+          hasBorders: !locked,
+          lockMovementX: locked,
+          lockMovementY: locked,
+          lockScalingX: locked,
+          lockScalingY: locked,
+          lockRotation: locked,
+          name: "backgroundImage",
+          excludeFromExport: false,
+        });
+
+        // Add image to canvas and send to back (but above workspace)
+        canvas.add(img);
+        img.moveTo(1); // Position above workspace (index 0) but below other elements
+
+        backgroundImageObject = img;
+        isBackgroundImageLocked = locked;
+
+        canvas.renderAll();
+        save();
+      },
+      {
+        crossOrigin: "anonymous",
+      },
+    );
+  };
+
+  const setBackgroundImageLock = (locked: boolean) => {
+    if (!backgroundImageObject) return;
+
+    isBackgroundImageLocked = locked;
+    backgroundImageObject.set({
+      selectable: !locked,
+      evented: !locked,
+      hasControls: !locked,
+      hasBorders: !locked,
+      lockMovementX: locked,
+      lockMovementY: locked,
+      lockScalingX: locked,
+      lockScalingY: locked,
+      lockRotation: locked,
+    });
+
+    if (locked) {
+      // Deselect if currently selected
+      if (canvas.getActiveObject() === backgroundImageObject) {
+        canvas.discardActiveObject();
+      }
+    }
+
+    backgroundImageObject.moveTo(1);
+    canvas.renderAll();
+    save();
+  };
+
+  const removeBackgroundImage = () => {
+    if (backgroundImageObject) {
+      canvas.remove(backgroundImageObject);
+      backgroundImageObject = null;
+      isBackgroundImageLocked = false;
+      canvas.renderAll();
+      save();
+    }
+  };
+
+  const getBackgroundImageInfo = () => {
+    if (!backgroundImageObject) return null;
+
+    return {
+      isLocked: isBackgroundImageLocked,
+      width: backgroundImageObject.width,
+      height: backgroundImageObject.height,
+      scaleX: backgroundImageObject.scaleX,
+      scaleY: backgroundImageObject.scaleY,
+    };
+  };
+
+  const changeSize = (value: { width: number; height: number }) => {
+    const workspace = getWorkspace();
+    workspace?.set(value);
+    canvas.setWidth(value.width);
+    canvas.setHeight(value.height);
+    setWorkspaceDimensions(value);
+
+    if (backgroundImageObject) {
+      const img = backgroundImageObject;
+
+      const originalWidth = img.width || 1;
+      const originalHeight = img.height || 1;
+
+      const scaleX = value.width / originalWidth;
+      const scaleY = value.height / originalHeight;
+      const scale = Math.min(scaleX, scaleY); // Use minimum to contain
+
+      img.set({
+        scaleX: scale,
+        scaleY: scale,
+        left: workspace?.left || 0,
+        top: workspace?.top || 0,
+      });
+
+      img.moveTo(1);
+    }
+
+    autoZoom();
+    save();
+  };
+
   return {
     savePdf,
     savePng,
@@ -561,6 +729,11 @@ const buildEditor = ({
     getWorkspace,
     generateSaveOptions,
     addQRCode,
+    setBackgroundImage,
+    setBackgroundImageLock,
+    removeBackgroundImage,
+    changeSize,
+    getBackgroundImageInfo,
     zoomIn: () => {
       let zoomRatio = canvas.getZoom();
       zoomRatio += 0.05;
@@ -579,15 +752,15 @@ const buildEditor = ({
         zoomRatio < 0.2 ? 0.2 : zoomRatio,
       );
     },
-    changeSize: (value: { width: number; height: number }) => {
-      const workspace = getWorkspace();
-      workspace?.set(value);
-      canvas.setWidth(value.width);
-      canvas.setHeight(value.height);
-      setWorkspaceDimensions(value);
-      autoZoom();
-      save();
-    },
+    // changeSize: (value: { width: number; height: number }) => {
+    //   const workspace = getWorkspace();
+    //   workspace?.set(value);
+    //   canvas.setWidth(value.width);
+    //   canvas.setHeight(value.height);
+    //   setWorkspaceDimensions(value);
+    //   autoZoom();
+    //   save();
+    // },
     changeBackground: (value: string) => {
       const workspace = getWorkspace();
       workspace?.set({ fill: value });

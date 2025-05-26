@@ -26,6 +26,9 @@ declare module "fabric" {
 
 export const JSON_KEYS = [
   "name",
+  "name",
+  "isBackgroundImage",
+  "isLocked",
   "gradientAngle",
   "selectable",
   "hasControls",
@@ -327,4 +330,14 @@ export interface Editor {
     left: number;
     top: number;
   };
+  setBackgroundImage: (imageUrl: string, locked?: boolean) => void;
+  setBackgroundImageLock: (locked: boolean) => void;
+  removeBackgroundImage: () => void;
+  getBackgroundImageInfo: () => {
+    isLocked: boolean;
+    width: number | undefined;
+    height: number | undefined;
+    scaleX: number | undefined;
+    scaleY: number | undefined;
+  } | null;
 }
