@@ -245,10 +245,10 @@ export type BuildEditorProps = {
 };
 
 export interface Editor {
-  savePdf: () => void;
-  savePng: () => void;
-  saveJpg: () => void;
-  saveSvg: () => void;
+  savePng: (includeBackground?: boolean) => void;
+  saveJpg: (includeBackground?: boolean) => void;
+  saveSvg: (includeBackground?: boolean) => void;
+  savePdf: (includeBackground?: boolean) => void;
   saveJson: () => void;
   loadJson: (json: string) => void;
   onUndo: () => void;
@@ -336,8 +336,11 @@ export interface Editor {
   getBackgroundImageInfo: () => {
     isLocked: boolean;
     width: number | undefined;
+    src?: string | undefined;
+    imageUrl: string | undefined;
     height: number | undefined;
     scaleX: number | undefined;
     scaleY: number | undefined;
   } | null;
+  setBackgroundStateChangeListener: (callback: (state: any) => void) => void;
 }

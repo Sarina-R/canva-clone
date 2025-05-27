@@ -37,12 +37,14 @@ interface ExportDialogProps {
     }
   >;
   onClose: () => void;
+  includeBackground?: boolean; // New prop
 }
 
 export function ExportDialog({
   editor,
   dataSources,
   onClose,
+  includeBackground = true, // Default to true
 }: ExportDialogProps) {
   const [exportFormat, setExportFormat] = useState<"png" | "pdf">("pdf");
   const [dataSourceId, setDataSourceId] = useState<string>("");
@@ -93,7 +95,7 @@ export function ExportDialog({
     setIsExporting(true);
     try {
       if (exportFormat === "png") {
-        editor.savePng();
+        editor.savePng(includeBackground);
       } else {
         if (
           dataSourceId &&
@@ -102,7 +104,7 @@ export function ExportDialog({
         ) {
           await exportAsPDF();
         } else {
-          editor.savePdf();
+          editor.savePdf(includeBackground);
         }
       }
     } catch (error) {
@@ -130,7 +132,7 @@ export function ExportDialog({
 
   const exportAsPDF = async () => {
     if (!editor?.canvas || !dataSourceId || !dataSources[dataSourceId]) {
-      editor.savePdf();
+      editor.savePdf(includeBackground);
       return;
     }
 
@@ -138,7 +140,7 @@ export function ExportDialog({
     const dataArray = dataPath ? getValueByPath(sourceData, dataPath) : null;
 
     if (!Array.isArray(dataArray) || dataArray.length === 0) {
-      editor.savePdf();
+      editor.savePdf(includeBackground);
       return;
     }
 
@@ -150,6 +152,19 @@ export function ExportDialog({
       unit: "px",
       format: [width, height],
     });
+
+    let tempBackground: fabric.Image | null = null;
+    console.log(tempBackground);
+    console.log(includeBackground);
+    if (!includeBackground && editor.getBackgroundImageInfo()) {
+      tempBackground = editor.canvas
+        .getObjects()
+        .find((obj: any) => obj.name === "backgroundImage");
+      if (tempBackground) {
+        editor.canvas.remove(tempBackground);
+        editor.canvas.renderAll();
+      }
+    }
 
     const start = includeAllPages ? 0 : Math.max(0, startIndex);
     const end = includeAllPages
@@ -214,6 +229,12 @@ export function ExportDialog({
       pdf.addImage(dataURL, "PNG", 0, 0, width, height);
 
       workspace.set({ visible: true });
+      editor.canvas.renderAll();
+    }
+
+    if (tempBackground) {
+      editor.canvas.add(tempBackground);
+      tempBackground.moveTo(1);
       editor.canvas.renderAll();
     }
 

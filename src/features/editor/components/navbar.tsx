@@ -14,14 +14,19 @@ import {
   Undo2,
   FileText,
 } from "lucide-react";
-
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { UserButton } from "@/features/auth/components/user-button";
 import { ExportDialog } from "@/features/editor/components/export-dialog";
 import { ActiveTool, Editor } from "@/features/editor/types";
 import { Logo } from "@/features/editor/components/logo";
 import { cn } from "@/lib/utils";
 import { Hint } from "@/components/hint";
-import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
   DropdownMenu,
@@ -45,6 +50,11 @@ export const Navbar = ({
   onChangeActiveTool,
 }: NavbarProps) => {
   const [showExportDialog, setShowExportDialog] = useState(false);
+  const [showBackgroundChoiceDialog, setShowBackgroundChoiceDialog] =
+    useState(false);
+  const [selectedExportFormat, setSelectedExportFormat] = useState<
+    "png" | "jpg" | "svg" | "pdf" | "dynamic-pdf" | null
+  >(null);
   const { dataSources } = useDataSources();
 
   const data = useMutationState({
@@ -72,6 +82,31 @@ export const Navbar = ({
       }
     },
   });
+
+  const handleExportChoice = (includeBackground: boolean) => {
+    if (!selectedExportFormat) return;
+    if (selectedExportFormat === "png") {
+      editor?.savePng(includeBackground);
+    } else if (selectedExportFormat === "jpg") {
+      editor?.saveJpg(includeBackground);
+    } else if (selectedExportFormat === "svg") {
+      editor?.saveSvg(includeBackground);
+    } else if (selectedExportFormat === "pdf") {
+      editor?.savePdf(includeBackground);
+    } else if (selectedExportFormat === "dynamic-pdf") {
+      setShowExportDialog(true); // Open ExportDialog for dynamic PDF
+      return;
+    }
+    setShowBackgroundChoiceDialog(false);
+    setSelectedExportFormat(null);
+  };
+
+  const openBackgroundChoiceDialog = (
+    format: "png" | "jpg" | "svg" | "pdf" | "dynamic-pdf",
+  ) => {
+    setSelectedExportFormat(format);
+    setShowBackgroundChoiceDialog(true);
+  };
 
   return (
     <>
@@ -175,7 +210,7 @@ export const Navbar = ({
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   className="flex items-center gap-x-2"
-                  onClick={() => editor?.savePng()}
+                  onClick={() => openBackgroundChoiceDialog("png")}
                 >
                   <CiFileOn className="size-8" />
                   <div>
@@ -187,7 +222,7 @@ export const Navbar = ({
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   className="flex items-center gap-x-2"
-                  onClick={() => editor?.saveJpg()}
+                  onClick={() => openBackgroundChoiceDialog("jpg")}
                 >
                   <CiFileOn className="size-8" />
                   <div>
@@ -199,7 +234,7 @@ export const Navbar = ({
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   className="flex items-center gap-x-2"
-                  onClick={() => editor?.saveSvg()}
+                  onClick={() => openBackgroundChoiceDialog("svg")}
                 >
                   <CiFileOn className="size-8" />
                   <div>
@@ -211,7 +246,7 @@ export const Navbar = ({
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   className="flex items-center gap-x-2"
-                  onClick={() => setShowExportDialog(true)}
+                  onClick={() => openBackgroundChoiceDialog("dynamic-pdf")}
                 >
                   <CiFileOn className="size-8" />
                   <div>
@@ -227,11 +262,42 @@ export const Navbar = ({
           </div>
         </div>
       </nav>
+      {showBackgroundChoiceDialog && (
+        <Dialog
+          open={true}
+          onOpenChange={() => setShowBackgroundChoiceDialog(false)}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Export Options</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Do you want to include the background image in the export?
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => handleExportChoice(false)}
+                >
+                  Without Background
+                </Button>
+                <Button onClick={() => handleExportChoice(true)}>
+                  With Background
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
       {showExportDialog && (
         <ExportDialog
           editor={editor}
           dataSources={dataSources}
           onClose={() => setShowExportDialog(false)}
+          includeBackground={
+            selectedExportFormat === "dynamic-pdf" ? true : undefined
+          }
         />
       )}
     </>

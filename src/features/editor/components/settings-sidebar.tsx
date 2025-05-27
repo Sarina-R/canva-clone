@@ -39,7 +39,6 @@ export const SettingsSidebar = ({
   const [height, setHeight] = useState(initialHeight);
   const [background, setBackground] = useState(initialBackground);
 
-  // Background image states
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
   const [isBackgroundLocked, setIsBackgroundLocked] = useState(false);
   const [backgroundImageSize, setBackgroundImageSize] = useState({
@@ -48,10 +47,34 @@ export const SettingsSidebar = ({
   });
 
   useEffect(() => {
+    // if (editor?.setBackgroundStateChangeListener) {
+    //   editor.setBackgroundStateChangeListener((state: any) => {
+    //     console.log("Fucking changed");
+    //     setBackgroundImage(state.backgroundImage);
+    //     setIsBackgroundLocked(state.isBackgroundLocked);
+    //     setBackgroundImageSize(state.backgroundImageSize);
+    //   });
+    // }
+    // const bgInfo = editor?.getBackgroundImageInfo?.();
+    // if (bgInfo) {
+    //   setBackgroundImage(bgInfo.src || null);
+    //   setIsBackgroundLocked(bgInfo.isLocked || false);
+    //   setBackgroundImageSize({
+    //     width: bgInfo.width || 0,
+    //     height: bgInfo.height || 0,
+    //   });
+    // }
+  }, [editor]);
+
+  useEffect(() => {
     setWidth(initialWidth);
     setHeight(initialHeight);
     setBackground(initialBackground);
   }, [initialWidth, initialHeight, initialBackground]);
+
+  useEffect(() => {
+    console.log("backgroundImage", backgroundImage);
+  }, []);
 
   const changeWidth = (value: string) => setWidth(value);
   const changeHeight = (value: string) => setHeight(value);
@@ -68,18 +91,21 @@ export const SettingsSidebar = ({
       const reader = new FileReader();
       reader.onload = (event) => {
         const imageUrl = event.target?.result as string;
-        setBackgroundImage(imageUrl);
 
-        // Create an image element to get dimensions
+        setBackgroundImage(imageUrl);
+        console.log(imageUrl);
+        console.log(event);
+
         const img = new Image();
         img.onload = () => {
           setBackgroundImageSize({ width: img.width, height: img.height });
-          editor?.setBackgroundImage?.(imageUrl, false); // Add as unlocked initially
+          editor?.setBackgroundImage?.(imageUrl, false);
         };
         img.src = imageUrl;
       };
       reader.readAsDataURL(file);
     }
+    e.target.value = "";
   };
 
   const toggleBackgroundLock = () => {
@@ -203,8 +229,10 @@ export const SettingsSidebar = ({
                   className="h-32 w-full rounded-lg border object-cover"
                 />
                 {isBackgroundLocked && (
-                  <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/10">
-                    <Lock className="h-6 w-6 text-white drop-shadow-lg" />
+                  <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/20">
+                    <div className="rounded-full bg-white/90 p-2">
+                      <Lock className="h-4 w-4 text-gray-700" />
+                    </div>
                   </div>
                 )}
               </div>
@@ -217,9 +245,17 @@ export const SettingsSidebar = ({
                 </p>
                 <p>
                   Status:{" "}
-                  {isBackgroundLocked
-                    ? "Locked (Protected)"
-                    : "Unlocked (Editable)"}
+                  <span
+                    className={
+                      isBackgroundLocked
+                        ? "font-medium text-orange-600"
+                        : "font-medium text-green-600"
+                    }
+                  >
+                    {isBackgroundLocked
+                      ? "🔒 Locked (Protected)"
+                      : "🔓 Unlocked (Editable)"}
+                  </span>
                 </p>
               </div>
 
@@ -247,10 +283,10 @@ export const SettingsSidebar = ({
                 </Button>
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="destructive"
                   size="sm"
                   onClick={removeBackgroundImage}
-                  disabled={isBackgroundLocked}
+                  className="px-3"
                 >
                   <X className="h-4 w-4" />
                 </Button>
@@ -268,26 +304,38 @@ export const SettingsSidebar = ({
                   />
                   <Label
                     htmlFor="background-replace"
-                    className="flex w-full cursor-pointer items-center justify-center rounded border border-gray-300 py-2 transition-colors hover:bg-gray-50"
+                    className="flex w-full cursor-pointer items-center justify-center rounded border border-gray-300 py-2 text-sm transition-colors hover:bg-gray-50"
                   >
                     <Upload className="mr-2 h-4 w-4" />
-                    <span className="text-sm">Replace Image</span>
+                    Replace Image
                   </Label>
                 </div>
               )}
 
               {/* Help Text */}
-              <div className="rounded bg-gray-50 p-2 text-xs text-gray-500">
+              <div
+                className={`rounded p-3 text-xs ${
+                  isBackgroundLocked
+                    ? "border border-orange-200 bg-orange-50 text-orange-700"
+                    : "border border-green-200 bg-green-50 text-green-700"
+                }`}
+              >
                 {isBackgroundLocked ? (
-                  <p>
-                    🔒 Background is locked and protected from changes. Canvas
-                    can still be resized.
-                  </p>
+                  <div>
+                    <p className="mb-1 font-medium">🔒 Background Protected</p>
+                    <p>
+                      Background is locked and safe from accidental changes.
+                      Canvas resizing is still available.
+                    </p>
+                  </div>
                 ) : (
-                  <p>
-                    🔓 Background is unlocked. You can move, resize, or replace
-                    it. Click lock to protect it.
-                  </p>
+                  <div>
+                    <p className="mb-1 font-medium">🔓 Background Editable</p>
+                    <p>
+                      You can move, resize, or replace the background. Click
+                      lock to protect it from changes.
+                    </p>
+                  </div>
                 )}
               </div>
             </div>
