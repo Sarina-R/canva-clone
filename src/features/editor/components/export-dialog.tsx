@@ -1,7 +1,5 @@
 "use client";
 import { fabric } from "fabric";
-import QRCodeSVG from "react-qr-code";
-import { renderToString } from "react-dom/server";
 import { useState, useEffect } from "react";
 import {
   Dialog,
