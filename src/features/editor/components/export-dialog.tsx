@@ -37,14 +37,14 @@ interface ExportDialogProps {
     }
   >;
   onClose: () => void;
-  includeBackground?: boolean; // New prop
+  includeBackground?: boolean;
 }
 
 export function ExportDialog({
   editor,
   dataSources,
   onClose,
-  includeBackground = true, // Default to true
+  includeBackground = true,
 }: ExportDialogProps) {
   const [exportFormat, setExportFormat] = useState<"png" | "pdf">("pdf");
   const [dataSourceId, setDataSourceId] = useState<string>("");
@@ -113,21 +113,6 @@ export function ExportDialog({
     } finally {
       setIsExporting(false);
     }
-  };
-
-  const generateQRCodeSVG = async (value: string): Promise<string> => {
-    return new Promise((resolve) => {
-      const qrSvg = renderToString(
-        <QRCodeSVG
-          value={value}
-          size={200}
-          bgColor="#ffffff"
-          fgColor="#000000"
-          level="Q"
-        />,
-      );
-      resolve(`<svg xmlns="http://www.w3.org/2000/svg">${qrSvg}</svg>`);
-    });
   };
 
   const exportAsPDF = async () => {
