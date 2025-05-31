@@ -12,7 +12,6 @@ import {
   MousePointerClick,
   Redo2,
   Undo2,
-  FileText,
 } from "lucide-react";
 import {
   Dialog,
@@ -53,7 +52,7 @@ export const Navbar = ({
   const [showBackgroundChoiceDialog, setShowBackgroundChoiceDialog] =
     useState(false);
   const [selectedExportFormat, setSelectedExportFormat] = useState<
-    "png" | "jpg" | "svg" | "pdf" | "dynamic-pdf" | null
+    "png" | "jpg" | "svg" | "pdf" | null
   >(null);
   const { dataSources } = useDataSources();
 
@@ -93,19 +92,20 @@ export const Navbar = ({
       editor?.saveSvg(includeBackground);
     } else if (selectedExportFormat === "pdf") {
       editor?.savePdf(includeBackground);
-    } else if (selectedExportFormat === "dynamic-pdf") {
-      setShowExportDialog(true); // Open ExportDialog for dynamic PDF
-      return;
     }
     setShowBackgroundChoiceDialog(false);
     setSelectedExportFormat(null);
   };
 
   const openBackgroundChoiceDialog = (
-    format: "png" | "jpg" | "svg" | "pdf" | "dynamic-pdf",
+    format: "png" | "jpg" | "svg" | "pdf",
   ) => {
     setSelectedExportFormat(format);
     setShowBackgroundChoiceDialog(true);
+  };
+
+  const handleDynamicPdfExport = () => {
+    setShowExportDialog(true);
   };
 
   return (
@@ -246,7 +246,7 @@ export const Navbar = ({
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   className="flex items-center gap-x-2"
-                  onClick={() => openBackgroundChoiceDialog("dynamic-pdf")}
+                  onClick={handleDynamicPdfExport}
                 >
                   <CiFileOn className="size-8" />
                   <div>
@@ -295,9 +295,7 @@ export const Navbar = ({
           editor={editor}
           dataSources={dataSources}
           onClose={() => setShowExportDialog(false)}
-          includeBackground={
-            selectedExportFormat === "dynamic-pdf" ? true : undefined
-          }
+          includeBackground={true}
         />
       )}
     </>

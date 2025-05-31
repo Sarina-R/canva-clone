@@ -20,7 +20,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { jsPDF } from "jspdf";
-import { FileType, ImageIcon } from "lucide-react";
+import { FileType, ImageIcon, Image, Palette } from "lucide-react";
 
 interface ExportDialogProps {
   editor: any;
@@ -54,6 +54,14 @@ export function ExportDialog({
   const [isExporting, setIsExporting] = useState(false);
   const [includeAllPages, setIncludeAllPages] = useState(true);
 
+  // Enhanced background options
+  const [backgroundOption, setBackgroundOption] = useState<
+    "include" | "color-only" | "none"
+  >("include");
+  const [hasBackgroundImage, setHasBackgroundImage] = useState(false);
+  const [hasBackgroundColor, setHasBackgroundColor] = useState(false);
+  const [backgroundColorValue, setBackgroundColorValue] = useState("#ffffff");
+
   useEffect(() => {
     if (dataSourceId && dataSources[dataSourceId]) {
       const data = dataSources[dataSourceId].data;
@@ -69,6 +77,20 @@ export function ExportDialog({
       }
     }
   }, [dataSourceId, dataSources]);
+
+  // Check for background elements when editor changes
+  useEffect(() => {
+    if (editor?.canvas) {
+      const workspace = editor.getWorkspace();
+      const backgroundInfo = editor.getBackgroundImageInfo?.();
+
+      setHasBackgroundImage(!!backgroundInfo);
+      setHasBackgroundColor(
+        workspace?.fill && workspace.fill !== "transparent",
+      );
+      setBackgroundColorValue(workspace?.fill || "#ffffff");
+    }
+  }, [editor]);
 
   const findFirstArrayPath = (data: any, path = ""): string => {
     if (!data || typeof data !== "object") return "";
@@ -88,12 +110,25 @@ export function ExportDialog({
     return path.split(".").reduce((o, key) => (o ? o[key] : undefined), obj);
   };
 
+  const getBackgroundIncludeFlag = (): boolean => {
+    switch (backgroundOption) {
+      case "include":
+        return true;
+      case "color-only":
+        return false; // We'll handle color separately
+      case "none":
+        return false;
+      default:
+        return true;
+    }
+  };
+
   const handleExport = async () => {
     if (!editor?.canvas) return;
     setIsExporting(true);
     try {
       if (exportFormat === "png") {
-        editor.savePng(includeBackground);
+        await exportAsPNG();
       } else {
         if (
           dataSourceId &&
@@ -102,7 +137,7 @@ export function ExportDialog({
         ) {
           await exportAsPDF();
         } else {
-          editor.savePdf(includeBackground);
+          await exportSinglePDF();
         }
       }
     } catch (error) {
@@ -113,9 +148,60 @@ export function ExportDialog({
     }
   };
 
+  const exportAsPNG = async () => {
+    const includeImageBackground = getBackgroundIncludeFlag();
+
+    if (backgroundOption === "color-only") {
+      // Temporarily hide background image but keep color
+      const tempBackground = editor.canvas
+        .getObjects()
+        .find((obj: any) => obj.name === "backgroundImage");
+
+      if (tempBackground) {
+        editor.canvas.remove(tempBackground);
+        editor.canvas.renderAll();
+      }
+
+      editor.savePng(true); // Include background color
+
+      if (tempBackground) {
+        editor.canvas.add(tempBackground);
+        tempBackground.moveTo(1);
+        editor.canvas.renderAll();
+      }
+    } else {
+      editor.savePng(includeImageBackground);
+    }
+  };
+
+  const exportSinglePDF = async () => {
+    const includeImageBackground = getBackgroundIncludeFlag();
+
+    if (backgroundOption === "color-only") {
+      const tempBackground = editor.canvas
+        .getObjects()
+        .find((obj: any) => obj.name === "backgroundImage");
+
+      if (tempBackground) {
+        editor.canvas.remove(tempBackground);
+        editor.canvas.renderAll();
+      }
+
+      editor.savePdf(true);
+
+      if (tempBackground) {
+        editor.canvas.add(tempBackground);
+        tempBackground.moveTo(1);
+        editor.canvas.renderAll();
+      }
+    } else {
+      editor.savePdf(includeImageBackground);
+    }
+  };
+
   const exportAsPDF = async () => {
     if (!editor?.canvas || !dataSourceId || !dataSources[dataSourceId]) {
-      editor.savePdf(includeBackground);
+      await exportSinglePDF();
       return;
     }
 
@@ -123,7 +209,7 @@ export function ExportDialog({
     const dataArray = dataPath ? getValueByPath(sourceData, dataPath) : null;
 
     if (!Array.isArray(dataArray) || dataArray.length === 0) {
-      editor.savePdf(includeBackground);
+      await exportSinglePDF();
       return;
     }
 
@@ -137,9 +223,10 @@ export function ExportDialog({
     });
 
     let tempBackground: fabric.Image | null = null;
-    console.log(tempBackground);
-    console.log(includeBackground);
-    if (!includeBackground && editor.getBackgroundImageInfo()) {
+    const includeImageBackground = getBackgroundIncludeFlag();
+
+    // Handle background image based on option
+    if (!includeImageBackground && editor.getBackgroundImageInfo()) {
       tempBackground = editor.canvas
         .getObjects()
         .find((obj: any) => obj.name === "backgroundImage");
@@ -147,6 +234,14 @@ export function ExportDialog({
         editor.canvas.remove(tempBackground);
         editor.canvas.renderAll();
       }
+    }
+
+    // Handle background color for "none" option
+    let originalWorkspaceFill: string | undefined;
+    if (backgroundOption === "none") {
+      originalWorkspaceFill = workspace.fill as string;
+      workspace.set({ fill: "transparent" });
+      editor.canvas.renderAll();
     }
 
     const start = includeAllPages ? 0 : Math.max(0, startIndex);
@@ -215,14 +310,34 @@ export function ExportDialog({
       editor.canvas.renderAll();
     }
 
+    // Restore background image if it was temporarily removed
     if (tempBackground) {
       editor.canvas.add(tempBackground);
       tempBackground.moveTo(1);
       editor.canvas.renderAll();
     }
 
+    // Restore background color if it was changed
+    if (backgroundOption === "none" && originalWorkspaceFill) {
+      workspace.set({ fill: originalWorkspaceFill });
+      editor.canvas.renderAll();
+    }
+
     pdf.save(`${fileName}.pdf`);
     editor.autoZoom();
+  };
+
+  const getBackgroundOptionDescription = () => {
+    switch (backgroundOption) {
+      case "include":
+        return "Include both background color and image (if present)";
+      case "color-only":
+        return "Include background color only, exclude images";
+      case "none":
+        return "Exclude all backgrounds";
+      default:
+        return "";
+    }
   };
 
   return (
@@ -236,10 +351,14 @@ export function ExportDialog({
             <TabsTrigger value="options" className="flex-1">
               Options
             </TabsTrigger>
+            <TabsTrigger value="background" className="flex-1">
+              Background
+            </TabsTrigger>
             <TabsTrigger value="data" className="flex-1">
               Data Range
             </TabsTrigger>
           </TabsList>
+
           <TabsContent value="options" className="space-y-4 pt-4">
             <div className="space-y-2">
               <Label htmlFor="file-name">File Name</Label>
@@ -296,6 +415,94 @@ export function ExportDialog({
               </div>
             )}
           </TabsContent>
+
+          <TabsContent value="background" className="space-y-4 pt-4">
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Background Options</Label>
+
+              <div className="space-y-1 rounded-md bg-muted p-3 text-xs">
+                <div className="flex items-center gap-2">
+                  <Palette className="h-3 w-3" />
+                  <span>
+                    Background Color: {hasBackgroundColor ? "Yes" : "None"}
+                  </span>
+                  {hasBackgroundColor && (
+                    <div
+                      className="h-4 w-4 rounded border border-gray-300"
+                      style={{ backgroundColor: backgroundColorValue }}
+                    />
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Image className="h-3 w-3" />
+                  <span>
+                    Background Image: {hasBackgroundImage ? "Yes" : "None"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    id="bg-include"
+                    name="background"
+                    value="include"
+                    checked={backgroundOption === "include"}
+                    onChange={(e) => setBackgroundOption(e.target.value as any)}
+                    className="h-4 w-4"
+                  />
+                  <Label
+                    htmlFor="bg-include"
+                    className="cursor-pointer text-sm"
+                  >
+                    Include All Backgrounds
+                  </Label>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    id="bg-color-only"
+                    name="background"
+                    value="color-only"
+                    checked={backgroundOption === "color-only"}
+                    onChange={(e) => setBackgroundOption(e.target.value as any)}
+                    className="h-4 w-4"
+                    disabled={!hasBackgroundColor}
+                  />
+                  <Label
+                    htmlFor="bg-color-only"
+                    className={`cursor-pointer text-sm ${!hasBackgroundColor ? "text-muted-foreground" : ""}`}
+                  >
+                    Color Only (No Images)
+                  </Label>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    id="bg-none"
+                    name="background"
+                    value="none"
+                    checked={backgroundOption === "none"}
+                    onChange={(e) => setBackgroundOption(e.target.value as any)}
+                    className="h-4 w-4"
+                  />
+                  <Label htmlFor="bg-none" className="cursor-pointer text-sm">
+                    No Background
+                  </Label>
+                </div>
+              </div>
+
+              {/* Description */}
+              <div className="rounded border border-blue-200 bg-blue-50 p-3 text-xs text-blue-700">
+                <p className="mb-1 font-medium">Selected Option:</p>
+                <p>{getBackgroundOptionDescription()}</p>
+              </div>
+            </div>
+          </TabsContent>
+
           <TabsContent value="data" className="space-y-4 pt-4">
             {dataSourceId &&
             dataSourceId !== "none" &&

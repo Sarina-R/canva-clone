@@ -47,26 +47,6 @@ export const SettingsSidebar = ({
   });
 
   useEffect(() => {
-    // if (editor?.setBackgroundStateChangeListener) {
-    //   editor.setBackgroundStateChangeListener((state: any) => {
-    //     console.log("Fucking changed");
-    //     setBackgroundImage(state.backgroundImage);
-    //     setIsBackgroundLocked(state.isBackgroundLocked);
-    //     setBackgroundImageSize(state.backgroundImageSize);
-    //   });
-    // }
-    // const bgInfo = editor?.getBackgroundImageInfo?.();
-    // if (bgInfo) {
-    //   setBackgroundImage(bgInfo.src || null);
-    //   setIsBackgroundLocked(bgInfo.isLocked || false);
-    //   setBackgroundImageSize({
-    //     width: bgInfo.width || 0,
-    //     height: bgInfo.height || 0,
-    //   });
-    // }
-  }, [editor]);
-
-  useEffect(() => {
     setWidth(initialWidth);
     setHeight(initialHeight);
     setBackground(initialBackground);
