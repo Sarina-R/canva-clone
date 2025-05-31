@@ -47,6 +47,74 @@ export const SettingsSidebar = ({
   });
 
   useEffect(() => {
+    const updateBackground = () => {
+      const backgroundInfo = editor?.getBackgroundImageInfo?.();
+      if (backgroundInfo?.imageUrl) {
+        setBackgroundImage(backgroundInfo.imageUrl);
+        setIsBackgroundLocked(backgroundInfo.isLocked);
+        setBackgroundImageSize({
+          width: backgroundInfo.width || 0,
+          height: backgroundInfo.height || 0,
+        });
+      } else {
+        setBackgroundImage(null);
+        setIsBackgroundLocked(false);
+        setBackgroundImageSize({ width: 0, height: 0 });
+      }
+    };
+
+    updateBackground();
+
+    const canvas = editor?.canvas;
+    if (canvas) {
+      const onObjectAdded = () => {
+        const background = canvas
+          .getObjects()
+          .find(
+            (obj: any) =>
+              obj.name === "backgroundImage" || obj.isBackgroundImage,
+          );
+        if (background) {
+          setBackgroundImage(background.imageUrl || background.src);
+          setIsBackgroundLocked(background.isLocked || false);
+          setBackgroundImageSize({
+            width: background.width || 0,
+            height: background.height || 0,
+          });
+        }
+      };
+
+      canvas.on("object:added", onObjectAdded);
+      canvas.on("object:modified", onObjectAdded);
+
+      return () => {
+        canvas.off("object:added", onObjectAdded);
+        canvas.off("object:modified", onObjectAdded);
+      };
+    }
+  }, [editor]);
+
+  useEffect(() => {
+    const backgroundInfo = editor?.getBackgroundImageInfo?.();
+    if (backgroundInfo?.imageUrl) {
+      setBackgroundImage(backgroundInfo.imageUrl);
+      setIsBackgroundLocked(backgroundInfo.isLocked);
+      setBackgroundImageSize({
+        width: backgroundInfo.width || 0,
+        height: backgroundInfo.height || 0,
+      });
+    }
+  }, [editor]);
+
+  useEffect(() => {
+    editor?.setBackgroundStateChangeListener?.((state) => {
+      setBackgroundImage(state.backgroundImage);
+      setIsBackgroundLocked(state.isBackgroundLocked);
+      setBackgroundImageSize(state.backgroundImageSize);
+    });
+  }, [editor]);
+
+  useEffect(() => {
     setWidth(initialWidth);
     setHeight(initialHeight);
     setBackground(initialBackground);
@@ -73,7 +141,6 @@ export const SettingsSidebar = ({
         const imageUrl = event.target?.result as string;
 
         setBackgroundImage(imageUrl);
-        console.log(imageUrl);
         console.log(event);
 
         const img = new Image();

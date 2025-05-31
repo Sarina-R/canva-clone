@@ -54,7 +54,6 @@ export function ExportDialog({
   const [isExporting, setIsExporting] = useState(false);
   const [includeAllPages, setIncludeAllPages] = useState(true);
 
-  // Enhanced background options
   const [backgroundOption, setBackgroundOption] = useState<
     "include" | "color-only" | "none"
   >("include");
@@ -78,7 +77,6 @@ export function ExportDialog({
     }
   }, [dataSourceId, dataSources]);
 
-  // Check for background elements when editor changes
   useEffect(() => {
     if (editor?.canvas) {
       const workspace = editor.getWorkspace();
@@ -115,7 +113,7 @@ export function ExportDialog({
       case "include":
         return true;
       case "color-only":
-        return false; // We'll handle color separately
+        return false;
       case "none":
         return false;
       default:
@@ -152,7 +150,6 @@ export function ExportDialog({
     const includeImageBackground = getBackgroundIncludeFlag();
 
     if (backgroundOption === "color-only") {
-      // Temporarily hide background image but keep color
       const tempBackground = editor.canvas
         .getObjects()
         .find((obj: any) => obj.name === "backgroundImage");
@@ -162,7 +159,7 @@ export function ExportDialog({
         editor.canvas.renderAll();
       }
 
-      editor.savePng(true); // Include background color
+      editor.savePng(true);
 
       if (tempBackground) {
         editor.canvas.add(tempBackground);
@@ -175,28 +172,50 @@ export function ExportDialog({
   };
 
   const exportSinglePDF = async () => {
-    const includeImageBackground = getBackgroundIncludeFlag();
+    if (!editor?.canvas) return;
 
-    if (backgroundOption === "color-only") {
-      const tempBackground = editor.canvas
+    const workspace = editor.getWorkspace() as fabric.Rect;
+    let tempBackground: fabric.Image | null = null;
+    let originalWorkspaceFill: string | undefined;
+
+    if (backgroundOption === "color-only" || backgroundOption === "none") {
+      const backgroundImage = editor.canvas
         .getObjects()
         .find((obj: any) => obj.name === "backgroundImage");
-
-      if (tempBackground) {
-        editor.canvas.remove(tempBackground);
+      if (backgroundImage) {
+        tempBackground = backgroundImage;
+        editor.canvas.remove(backgroundImage);
         editor.canvas.renderAll();
       }
-
-      editor.savePdf(true);
-
-      if (tempBackground) {
-        editor.canvas.add(tempBackground);
-        tempBackground.moveTo(1);
-        editor.canvas.renderAll();
-      }
-    } else {
-      editor.savePdf(includeImageBackground);
     }
+
+    if (backgroundOption === "none") {
+      originalWorkspaceFill = workspace.fill as string;
+      workspace.set({ fill: "transparent" });
+      editor.canvas.renderAll();
+    } else if (
+      backgroundOption === "color-only" ||
+      backgroundOption === "include"
+    ) {
+      const currentFill = workspace.fill || "#ffffff";
+      workspace.set({ fill: currentFill });
+      editor.canvas.renderAll();
+    }
+
+    editor.savePdf(backgroundOption === "include");
+
+    if (tempBackground) {
+      editor.canvas.add(tempBackground);
+      tempBackground.moveTo(1);
+      editor.canvas.renderAll();
+    }
+
+    if (backgroundOption === "none" && originalWorkspaceFill) {
+      workspace.set({ fill: originalWorkspaceFill });
+      editor.canvas.renderAll();
+    }
+
+    editor.autoZoom();
   };
 
   const exportAsPDF = async () => {
@@ -223,24 +242,26 @@ export function ExportDialog({
     });
 
     let tempBackground: fabric.Image | null = null;
-    const includeImageBackground = getBackgroundIncludeFlag();
+    let originalWorkspaceFill: string | undefined;
 
-    // Handle background image based on option
-    if (!includeImageBackground && editor.getBackgroundImageInfo()) {
-      tempBackground = editor.canvas
+    if (backgroundOption === "color-only" || backgroundOption === "none") {
+      const backgroundImage = editor.canvas
         .getObjects()
         .find((obj: any) => obj.name === "backgroundImage");
-      if (tempBackground) {
-        editor.canvas.remove(tempBackground);
+      if (backgroundImage) {
+        tempBackground = backgroundImage;
+        editor.canvas.remove(backgroundImage);
         editor.canvas.renderAll();
       }
     }
 
-    // Handle background color for "none" option
-    let originalWorkspaceFill: string | undefined;
     if (backgroundOption === "none") {
       originalWorkspaceFill = workspace.fill as string;
       workspace.set({ fill: "transparent" });
+      editor.canvas.renderAll();
+    } else {
+      const currentFill = workspace.fill || "#ffffff";
+      workspace.set({ fill: currentFill });
       editor.canvas.renderAll();
     }
 
@@ -310,14 +331,12 @@ export function ExportDialog({
       editor.canvas.renderAll();
     }
 
-    // Restore background image if it was temporarily removed
     if (tempBackground) {
       editor.canvas.add(tempBackground);
       tempBackground.moveTo(1);
       editor.canvas.renderAll();
     }
 
-    // Restore background color if it was changed
     if (backgroundOption === "none" && originalWorkspaceFill) {
       workspace.set({ fill: originalWorkspaceFill });
       editor.canvas.renderAll();

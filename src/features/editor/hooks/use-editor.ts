@@ -65,18 +65,20 @@ const buildEditor = ({
   const initializeCanvas = () => {
     const savedState = localStorage.getItem("canvasState");
     if (savedState) {
-      try {
-        console.log("🎉 Restoring canvas state from localStorage");
-        console.log(savedState);
-        // loadJson(savedState);
-      } catch (error) {
-        console.error("❌ Failed to restore canvas state:", error);
+      console.log(
+        "🎉 Canvas state found in localStorage, will be loaded by component",
+      );
+    } else {
+      const workspace = getWorkspace() as fabric.Rect;
+      if (workspace) {
+        workspace.set({ fill: "#ffffff" });
+        canvas.renderAll();
+        console.log("✅ Default white background set for workspace");
       }
     }
   };
 
   initializeCanvas();
-  console.log(backgroundImageObject);
   const setBackgroundStateChangeListener = (callback: (state: any) => void) => {
     onBackgroundStateChange = callback;
   };
@@ -152,7 +154,7 @@ const buildEditor = ({
         itemIndex,
         isDynamic: true,
         qrUrl: current,
-        qrSvgString: qrElement.outerHTML, // Store the SVG string
+        qrSvgString: qrElement.outerHTML,
       });
 
       qrGroup.scaleToWidth(200);
@@ -193,10 +195,13 @@ const buildEditor = ({
     const workspace = getWorkspace() as fabric.Rect;
 
     let tempBackground: fabric.Image | null = null;
-    if (!includeBackground && backgroundImageObject) {
-      tempBackground = backgroundImageObject;
-      canvas.remove(backgroundImageObject);
-      canvas.renderAll();
+
+    if (!includeBackground) {
+      if (backgroundImageObject) {
+        tempBackground = backgroundImageObject;
+        canvas.remove(backgroundImageObject);
+        canvas.renderAll();
+      }
     }
 
     workspace.set({ visible: false });
@@ -225,9 +230,10 @@ const buildEditor = ({
       canvas.renderAll();
     }
 
-    setWorkspaceDimensions({ width: tempWidth, height: tempHeight });
     workspace.set({ visible: true });
     canvas.renderAll();
+
+    setWorkspaceDimensions({ width: tempWidth, height: tempHeight });
     autoZoom();
   };
 
@@ -236,9 +242,15 @@ const buildEditor = ({
     canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
 
     let tempBackground: fabric.Image | null = null;
-    if (!includeBackground && backgroundImageObject) {
-      tempBackground = backgroundImageObject;
-      canvas.remove(backgroundImageObject);
+    const backgroundImg = canvas
+      .getObjects()
+      .find(
+        (obj: any) => obj.name === "backgroundImage" || obj.isBackgroundImage,
+      ) as fabric.Image;
+
+    if (!includeBackground && backgroundImg) {
+      tempBackground = backgroundImg;
+      canvas.remove(backgroundImg);
       canvas.renderAll();
     }
 
@@ -374,7 +386,6 @@ const buildEditor = ({
     )}`;
     downloadFile(fileString, "json");
 
-    // Save to localStorage
     localStorage.setItem("canvasState", JSON.stringify(data));
     console.log("✅ Canvas state saved to localStorage with background:", {
       hasBackground: !!backgroundImageObject,
@@ -387,7 +398,6 @@ const buildEditor = ({
     try {
       const data = JSON.parse(json);
       const objectsData = data.objects || data;
-      const metadata = data.dynamicMetadata;
       const backgroundState = data.backgroundImageState;
 
       console.log("📂 Loading canvas state with background:", backgroundState);
@@ -398,7 +408,7 @@ const buildEditor = ({
         setWorkspaceDimensions({ width: data.width, height: data.height });
       }
 
-      canvas.loadFromJSON(objectsData, async () => {
+      canvas.loadFromJSON(objectsData, () => {
         let restoredDynamicCount = 0;
 
         if (
@@ -468,6 +478,7 @@ const buildEditor = ({
                 `✅ Background image restored (${isBackgroundImageLocked ? "locked" : "unlocked"})`,
               );
 
+              // Ensure the UI is updated
               if (onBackgroundStateChange) {
                 onBackgroundStateChange({
                   backgroundImage: backgroundState.imageUrl,
@@ -484,67 +495,15 @@ const buildEditor = ({
             },
           );
         } else {
-          const backgroundImg = canvas
-            .getObjects()
-            .find(
-              (obj: any) =>
-                obj.name === "backgroundImage" || obj.isBackgroundImage,
-            );
-
-          if (backgroundImg) {
-            backgroundImageObject = backgroundImg as fabric.Image;
-            isBackgroundImageLocked = (backgroundImg as any).isLocked || false;
-            backgroundImageUrl =
-              (backgroundImg as any).imageUrl ||
-              (backgroundImg as any).src ||
-              null;
-
-            setBackgroundImageLock(isBackgroundImageLocked);
-            console.log(
-              `✅ Background image found in objects (${isBackgroundImageLocked ? "locked" : "unlocked"})`,
-            );
-
-            if (onBackgroundStateChange && backgroundImageUrl) {
-              onBackgroundStateChange({
-                backgroundImage: backgroundImageUrl,
-                isBackgroundLocked: isBackgroundImageLocked,
-                backgroundImageSize: {
-                  width: backgroundImg.width || 0,
-                  height: backgroundImg.height || 0,
-                },
-              });
-            }
-          } else {
-            backgroundImageObject = null;
-            isBackgroundImageLocked = false;
-            backgroundImageUrl = null;
-            if (onBackgroundStateChange) {
-              onBackgroundStateChange({
-                backgroundImage: null,
-                isBackgroundLocked: false,
-                backgroundImageSize: { width: 0, height: 0 },
-              });
-            }
-          }
-        }
-
-        const dynamicObjects = canvas
-          .getObjects()
-          .filter((obj: any) => obj.get("isDynamic"));
-
-        for (const obj of dynamicObjects) {
-          if (obj.get("isDynamic")) {
-            restoredDynamicCount;
-            if (obj.get("qrUrl")) {
-              const qrUrl = obj.get("qrUrl");
-              const dataSourceId = obj.get("dataSourceId");
-              const fieldPath = obj.get("fieldPath");
-              const itemIndex = obj.get("itemIndex");
-
-              console.log(
-                `✅ Dynamic QR code restored: ${fieldPath} - ${qrUrl}`,
-              );
-            }
+          backgroundImageObject = null;
+          isBackgroundImageLocked = false;
+          backgroundImageUrl = null;
+          if (onBackgroundStateChange) {
+            onBackgroundStateChange({
+              backgroundImage: null,
+              isBackgroundLocked: false,
+              backgroundImageSize: { width: 0, height: 0 },
+            });
           }
         }
 
@@ -782,13 +741,7 @@ const buildEditor = ({
 
         canvas.add(img);
         img.moveTo(1);
-
-        console.log("YOU SEE NOW");
-        console.log(img);
         backgroundImageObject = img;
-
-        console.log("THere you fucking go: YOU SEE NOW");
-        console.log(backgroundImageObject);
         isBackgroundImageLocked = locked;
 
         canvas.renderAll();
