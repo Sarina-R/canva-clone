@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { Lock, Unlock, Upload, X } from "lucide-react";
 
 import { ActiveTool, Editor } from "@/features/editor/types";
@@ -46,72 +46,168 @@ export const SettingsSidebar = ({
     height: 0,
   });
 
-  useEffect(() => {
-    const updateBackground = () => {
-      const backgroundInfo = editor?.getBackgroundImageInfo?.();
-      if (backgroundInfo?.imageUrl) {
-        setBackgroundImage(backgroundInfo.imageUrl);
-        setIsBackgroundLocked(backgroundInfo.isLocked);
-        setBackgroundImageSize({
-          width: backgroundInfo.width || 0,
-          height: backgroundInfo.height || 0,
+  const [backgroundStateReady, setBackgroundStateReady] = useState(false);
+
+  const updateBackgroundFromCanvas = useCallback(() => {
+    const canvas = editor?.canvas;
+    if (!canvas) {
+      console.log("❌ Canvas not available");
+      return;
+    }
+
+    try {
+      console.log("🔍 Scanning canvas for background image...");
+
+      const backgroundObj = canvas.getObjects().find((obj: any) => {
+        return (
+          obj.name === "backgroundImage" ||
+          obj.isBackgroundImage === true ||
+          obj.data?.isBackgroundImage === true
+        );
+      });
+
+      if (backgroundObj) {
+        console.log("✅ Background image found:", backgroundObj);
+
+        const imageUrl =
+          (backgroundObj as any).imageUrl ||
+          (backgroundObj as any).src ||
+          (backgroundObj as any).data?.imageUrl ||
+          (backgroundObj as any)._element?.src ||
+          (backgroundObj as any)._originalElement?.src;
+
+        const isLocked =
+          (backgroundObj as any).isLocked === true ||
+          (backgroundObj as any).lockMovementX === true ||
+          !(backgroundObj as any).selectable;
+
+        console.log("📊 Background info extracted:", {
+          imageUrl: imageUrl ? imageUrl.substring(0, 50) + "..." : "No URL",
+          isLocked,
+          width: (backgroundObj as any).width,
+          height: (backgroundObj as any).height,
         });
-      } else {
-        setBackgroundImage(null);
-        setIsBackgroundLocked(false);
-        setBackgroundImageSize({ width: 0, height: 0 });
+
+        if (imageUrl) {
+          setBackgroundImage(imageUrl);
+          setIsBackgroundLocked(isLocked);
+          setBackgroundImageSize({
+            width: (backgroundObj as any).width || 0,
+            height: (backgroundObj as any).height || 0,
+          });
+          setBackgroundStateReady(true);
+          return;
+        }
+      }
+
+      console.log("❌ No background image found, resetting state");
+      setBackgroundImage(null);
+      setIsBackgroundLocked(false);
+      setBackgroundImageSize({ width: 0, height: 0 });
+      setBackgroundStateReady(true);
+    } catch (error) {
+      console.error("❌ Error scanning for background:", error);
+      setBackgroundStateReady(true);
+    }
+  }, [editor]);
+
+  useEffect(() => {
+    if (!editor?.canvas) return;
+
+    console.log("🔄 Checking for saved canvas state...");
+
+    const savedState = localStorage.getItem("canvasState");
+    if (savedState) {
+      try {
+        const data = JSON.parse(savedState);
+        const backgroundState = data.backgroundImageState;
+
+        console.log("💾 Found saved background state:", backgroundState);
+
+        if (backgroundState?.hasBackgroundImage && backgroundState?.imageUrl) {
+          console.log("🖼️ Setting background from localStorage");
+          setBackgroundImage(backgroundState.imageUrl);
+          setIsBackgroundLocked(backgroundState.isLocked || false);
+          setBackgroundImageSize(
+            backgroundState.dimensions || { width: 0, height: 0 },
+          );
+          setBackgroundStateReady(true);
+          return;
+        }
+      } catch (error) {
+        console.error("❌ Error parsing saved state:", error);
+      }
+    }
+
+    const timer = setTimeout(() => {
+      updateBackgroundFromCanvas();
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [editor, updateBackgroundFromCanvas]);
+
+  useEffect(() => {
+    const canvas = editor?.canvas;
+    if (!canvas) return;
+
+    const handleCanvasReady = () => {
+      console.log("🎨 Canvas ready, updating background state...");
+      setTimeout(updateBackgroundFromCanvas, 100);
+    };
+
+    const handleObjectChange = (e?: any) => {
+      if (!backgroundStateReady) return;
+
+      console.log("🔄 Canvas object changed:", e?.type);
+
+      if (
+        e?.target?.name === "backgroundImage" ||
+        e?.target?.isBackgroundImage
+      ) {
+        console.log("🖼️ Background object changed, updating state...");
+        setTimeout(updateBackgroundFromCanvas, 50);
       }
     };
 
-    updateBackground();
+    const events = [
+      "object:added",
+      "object:removed",
+      "object:modified",
+      "object:moving",
+      "selection:created",
+      "selection:cleared",
+    ];
 
-    const canvas = editor?.canvas;
-    if (canvas) {
-      const onObjectAdded = () => {
-        const background = canvas
-          .getObjects()
-          .find(
-            (obj: any) =>
-              obj.name === "backgroundImage" || obj.isBackgroundImage,
-          );
-        if (background) {
-          setBackgroundImage(background.imageUrl || background.src);
-          setIsBackgroundLocked(background.isLocked || false);
-          setBackgroundImageSize({
-            width: background.width || 0,
-            height: background.height || 0,
-          });
-        }
-      };
-
-      canvas.on("object:added", onObjectAdded);
-      canvas.on("object:modified", onObjectAdded);
-
-      return () => {
-        canvas.off("object:added", onObjectAdded);
-        canvas.off("object:modified", onObjectAdded);
-      };
+    if (canvas.getObjects().length >= 0) {
+      handleCanvasReady();
     }
-  }, [editor]);
+
+    events.forEach((event) => {
+      canvas.on(event, handleObjectChange);
+    });
+
+    return () => {
+      events.forEach((event) => {
+        canvas.off(event, handleObjectChange);
+      });
+    };
+  }, [editor, updateBackgroundFromCanvas, backgroundStateReady]);
 
   useEffect(() => {
-    const backgroundInfo = editor?.getBackgroundImageInfo?.();
-    if (backgroundInfo?.imageUrl) {
-      setBackgroundImage(backgroundInfo.imageUrl);
-      setIsBackgroundLocked(backgroundInfo.isLocked);
-      setBackgroundImageSize({
-        width: backgroundInfo.width || 0,
-        height: backgroundInfo.height || 0,
+    if (editor?.setBackgroundStateChangeListener) {
+      console.log("📡 Setting up editor background listener...");
+
+      editor.setBackgroundStateChangeListener((state) => {
+        console.log("📡 Editor background state changed:", state);
+
+        setBackgroundImage(state.backgroundImage);
+        setIsBackgroundLocked(state.isBackgroundLocked);
+        setBackgroundImageSize(
+          state.backgroundImageSize || { width: 0, height: 0 },
+        );
+        setBackgroundStateReady(true);
       });
     }
-  }, [editor]);
-
-  useEffect(() => {
-    editor?.setBackgroundStateChangeListener?.((state) => {
-      setBackgroundImage(state.backgroundImage);
-      setIsBackgroundLocked(state.isBackgroundLocked);
-      setBackgroundImageSize(state.backgroundImageSize);
-    });
   }, [editor]);
 
   useEffect(() => {
@@ -120,10 +216,6 @@ export const SettingsSidebar = ({
     setBackground(initialBackground);
   }, [initialWidth, initialHeight, initialBackground]);
 
-  useEffect(() => {
-    console.log("backgroundImage", backgroundImage);
-  }, []);
-
   const changeWidth = (value: string) => setWidth(value);
   const changeHeight = (value: string) => setHeight(value);
   const changeBackground = (value: string) => {
@@ -131,44 +223,67 @@ export const SettingsSidebar = ({
     editor?.changeBackground(value);
   };
 
-  const handleBackgroundImageUpload = (
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const imageUrl = event.target?.result as string;
+  const handleBackgroundImageUpload = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file && editor) {
+        console.log("📤 Uploading new background image...");
 
-        setBackgroundImage(imageUrl);
-        console.log(event);
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const imageUrl = event.target?.result as string;
 
-        const img = new Image();
-        img.onload = () => {
-          setBackgroundImageSize({ width: img.width, height: img.height });
-          editor?.setBackgroundImage?.(imageUrl, false);
+          const img = new Image();
+          img.onload = () => {
+            console.log("✅ New background image loaded:", {
+              url: imageUrl.substring(0, 50) + "...",
+              width: img.width,
+              height: img.height,
+            });
+
+            setBackgroundImage(imageUrl);
+            setBackgroundImageSize({ width: img.width, height: img.height });
+            setIsBackgroundLocked(false);
+
+            if (editor.setBackgroundImage) {
+              editor.setBackgroundImage(imageUrl, false);
+            }
+          };
+          img.src = imageUrl;
         };
-        img.src = imageUrl;
-      };
-      reader.readAsDataURL(file);
-    }
-    e.target.value = "";
-  };
+        reader.readAsDataURL(file);
+      }
+      e.target.value = "";
+    },
+    [editor],
+  );
 
-  const toggleBackgroundLock = () => {
-    if (backgroundImage) {
+  const toggleBackgroundLock = useCallback(() => {
+    if (backgroundImage && editor) {
       const newLockState = !isBackgroundLocked;
-      setIsBackgroundLocked(newLockState);
-      editor?.setBackgroundImageLock?.(newLockState);
-    }
-  };
+      console.log(
+        `🔐 Toggling background lock: ${isBackgroundLocked} -> ${newLockState}`,
+      );
 
-  const removeBackgroundImage = () => {
+      setIsBackgroundLocked(newLockState);
+
+      if (editor.setBackgroundImageLock) {
+        editor.setBackgroundImageLock(newLockState);
+      }
+    }
+  }, [backgroundImage, isBackgroundLocked, editor]);
+
+  const removeBackgroundImage = useCallback(() => {
+    console.log("🗑️ Removing background image...");
+
     setBackgroundImage(null);
     setIsBackgroundLocked(false);
     setBackgroundImageSize({ width: 0, height: 0 });
-    editor?.removeBackgroundImage?.();
-  };
+
+    if (editor?.removeBackgroundImage) {
+      editor.removeBackgroundImage();
+    }
+  }, [editor]);
 
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -182,6 +297,8 @@ export const SettingsSidebar = ({
   const onClose = () => {
     onChangeActiveTool("select");
   };
+
+  const isEditorReady = editor && editor.canvas && backgroundStateReady;
 
   return (
     <aside
@@ -242,6 +359,17 @@ export const SettingsSidebar = ({
             </p>
           </div>
 
+          {!backgroundStateReady ? (
+            <div className="mb-4 flex items-center justify-center rounded-md bg-blue-50 p-4 text-sm text-blue-800">
+              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>
+              Loading background state...
+            </div>
+          ) : !isEditorReady ? (
+            <div className="mb-4 rounded-md bg-yellow-50 p-3 text-sm text-yellow-800">
+              Editor is initializing... Please wait.
+            </div>
+          ) : null}
+
           {!backgroundImage ? (
             <div className="space-y-2">
               <input
@@ -250,10 +378,14 @@ export const SettingsSidebar = ({
                 onChange={handleBackgroundImageUpload}
                 className="hidden"
                 id="background-upload"
+                disabled={!isEditorReady}
               />
               <Label
                 htmlFor="background-upload"
-                className="flex h-32 w-full cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-gray-300 transition-colors hover:border-gray-400"
+                className={cn(
+                  "flex h-32 w-full cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-gray-300 transition-colors hover:border-gray-400",
+                  !isEditorReady && "cursor-not-allowed opacity-50",
+                )}
               >
                 <div className="text-center">
                   <Upload className="mx-auto mb-2 h-8 w-8 text-gray-400" />
@@ -314,7 +446,7 @@ export const SettingsSidebar = ({
                   size="sm"
                   onClick={toggleBackgroundLock}
                   className="flex-1"
-                  disabled={!backgroundImage}
+                  disabled={!backgroundImage || !isEditorReady}
                 >
                   {isBackgroundLocked ? (
                     <>
@@ -334,6 +466,7 @@ export const SettingsSidebar = ({
                   size="sm"
                   onClick={removeBackgroundImage}
                   className="px-3"
+                  disabled={!isEditorReady}
                 >
                   <X className="h-4 w-4" />
                 </Button>
@@ -348,10 +481,14 @@ export const SettingsSidebar = ({
                     onChange={handleBackgroundImageUpload}
                     className="hidden"
                     id="background-replace"
+                    disabled={!isEditorReady}
                   />
                   <Label
                     htmlFor="background-replace"
-                    className="flex w-full cursor-pointer items-center justify-center rounded border border-gray-300 py-2 text-sm transition-colors hover:bg-gray-50"
+                    className={cn(
+                      "flex w-full cursor-pointer items-center justify-center rounded border border-gray-300 py-2 text-sm transition-colors hover:bg-gray-50",
+                      !isEditorReady && "cursor-not-allowed opacity-50",
+                    )}
                   >
                     <Upload className="mr-2 h-4 w-4" />
                     Replace Image

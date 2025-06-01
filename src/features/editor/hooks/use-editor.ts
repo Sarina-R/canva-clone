@@ -62,12 +62,49 @@ const buildEditor = ({
   workspaceDimensions,
   setWorkspaceDimensions,
 }: BuildEditorProps): Editor => {
+  const syncBackgroundState = () => {
+    if (onBackgroundStateChange) {
+      const backgroundInfo = getBackgroundImageInfo();
+      onBackgroundStateChange({
+        backgroundImage: backgroundImageUrl,
+        isBackgroundLocked: isBackgroundImageLocked,
+        backgroundImageSize: backgroundInfo
+          ? {
+              width: backgroundInfo.width || 0,
+              height: backgroundInfo.height || 0,
+            }
+          : { width: 0, height: 0 },
+      });
+    }
+  };
+
   const initializeCanvas = () => {
     const savedState = localStorage.getItem("canvasState");
     if (savedState) {
       console.log(
         "🎉 Canvas state found in localStorage, will be loaded by component",
       );
+
+      try {
+        const data = JSON.parse(savedState);
+        const backgroundState = data.backgroundImageState;
+
+        if (backgroundState?.hasBackgroundImage && backgroundState?.imageUrl) {
+          backgroundImageUrl = backgroundState.imageUrl;
+          isBackgroundImageLocked = backgroundState.isLocked || false;
+
+          console.log("💾 Background state restored from localStorage:", {
+            imageUrl: backgroundState.imageUrl,
+            isLocked: isBackgroundImageLocked,
+          });
+
+          setTimeout(() => {
+            syncBackgroundState();
+          }, 100);
+        }
+      } catch (error) {
+        console.error("❌ Error parsing saved state:", error);
+      }
     } else {
       const workspace = getWorkspace() as fabric.Rect;
       if (workspace) {
@@ -409,8 +446,6 @@ const buildEditor = ({
       }
 
       canvas.loadFromJSON(objectsData, () => {
-        let restoredDynamicCount = 0;
-
         if (
           backgroundState &&
           backgroundState.hasBackgroundImage &&
@@ -463,9 +498,13 @@ const buildEditor = ({
                 lockScalingY: isBackgroundImageLocked,
                 lockRotation: isBackgroundImageLocked,
                 name: "backgroundImage",
+                isBackgroundImage: true,
+                isLocked: isBackgroundImageLocked,
                 excludeFromExport: false,
+                imageUrl: backgroundState.imageUrl,
                 data: {
                   isBackgroundImage: true,
+                  imageUrl: backgroundState.imageUrl,
                 },
               });
 
@@ -474,21 +513,13 @@ const buildEditor = ({
               backgroundImageObject = img;
 
               canvas.renderAll();
-              console.log(
-                `✅ Background image restored (${isBackgroundImageLocked ? "locked" : "unlocked"})`,
-              );
 
-              // Ensure the UI is updated
-              if (onBackgroundStateChange) {
-                onBackgroundStateChange({
-                  backgroundImage: backgroundState.imageUrl,
-                  isBackgroundLocked: isBackgroundImageLocked,
-                  backgroundImageSize: {
-                    width: img.width || 0,
-                    height: img.height || 0,
-                  },
-                });
-              }
+              setTimeout(() => {
+                syncBackgroundState();
+                console.log(
+                  `✅ Background image restored and synced (${isBackgroundImageLocked ? "locked" : "unlocked"})`,
+                );
+              }, 100);
             },
             {
               crossOrigin: "anonymous",
@@ -498,13 +529,10 @@ const buildEditor = ({
           backgroundImageObject = null;
           isBackgroundImageLocked = false;
           backgroundImageUrl = null;
-          if (onBackgroundStateChange) {
-            onBackgroundStateChange({
-              backgroundImage: null,
-              isBackgroundLocked: false,
-              backgroundImageSize: { width: 0, height: 0 },
-            });
-          }
+
+          setTimeout(() => {
+            syncBackgroundState();
+          }, 100);
         }
 
         canvas.renderAll();
@@ -513,7 +541,12 @@ const buildEditor = ({
     } catch (error) {
       console.error("❌ JSON loading failed:", error);
       const data = JSON.parse(json);
-      canvas.loadFromJSON(data.objects || data, () => autoZoom());
+      canvas.loadFromJSON(data.objects || data, () => {
+        autoZoom();
+        setTimeout(() => {
+          syncBackgroundState();
+        }, 100);
+      });
     }
   };
 
@@ -732,6 +765,9 @@ const buildEditor = ({
           lockScalingY: locked,
           lockRotation: locked,
           name: "backgroundImage",
+          isBackgroundImage: true,
+          isLocked: locked,
+          imageUrl: imageUrl,
           data: {
             isBackgroundImage: true,
             imageUrl: imageUrl,
@@ -747,8 +783,10 @@ const buildEditor = ({
         canvas.renderAll();
         save();
 
+        syncBackgroundState();
+
         console.log(
-          `✅ Background image set (${locked ? "locked" : "unlocked"})`,
+          `✅ Background image set and synced (${locked ? "locked" : "unlocked"})`,
         );
       },
       {
@@ -771,8 +809,9 @@ const buildEditor = ({
       lockScalingX: locked,
       lockScalingY: locked,
       lockRotation: locked,
+      isLocked: locked,
     });
-    Image;
+
     if (locked && canvas.getActiveObject() === backgroundImageObject) {
       canvas.discardActiveObject();
     }
@@ -780,6 +819,8 @@ const buildEditor = ({
     backgroundImageObject.moveTo(1);
     canvas.renderAll();
     save();
+
+    syncBackgroundState();
   };
 
   const removeBackgroundImage = () => {
@@ -791,7 +832,9 @@ const buildEditor = ({
       canvas.renderAll();
       save();
 
-      console.log("✅ Background image removed");
+      syncBackgroundState();
+
+      console.log("✅ Background image removed and synced");
     }
   };
 
@@ -838,6 +881,18 @@ const buildEditor = ({
     autoZoom();
     save();
   };
+
+  canvas.on("object:modified", (e) => {
+    if (
+      e.target &&
+      (e.target.name === "backgroundImage" || e.target.isBackgroundImage)
+    ) {
+      console.log("🔄 Background object modified, syncing state...");
+      setTimeout(() => {
+        syncBackgroundState();
+      }, 50);
+    }
+  });
 
   return {
     savePdf,
