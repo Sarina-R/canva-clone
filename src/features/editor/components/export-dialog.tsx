@@ -54,9 +54,9 @@ export function ExportDialog({
   const [isExporting, setIsExporting] = useState(false);
   const [includeAllPages, setIncludeAllPages] = useState(true);
 
-  const [backgroundOption, setBackgroundOption] = useState<
-    "include" | "color-only" | "none"
-  >("include");
+  const [backgroundOption, setBackgroundOption] = useState<"include" | "none">(
+    "include",
+  );
   const [hasBackgroundImage, setHasBackgroundImage] = useState(false);
   const [hasBackgroundColor, setHasBackgroundColor] = useState(false);
   const [backgroundColorValue, setBackgroundColorValue] = useState("#ffffff");
@@ -109,16 +109,7 @@ export function ExportDialog({
   };
 
   const getBackgroundIncludeFlag = (): boolean => {
-    switch (backgroundOption) {
-      case "include":
-        return true;
-      case "color-only":
-        return false;
-      case "none":
-        return false;
-      default:
-        return true;
-    }
+    return backgroundOption === "include";
   };
 
   const handleExport = async () => {
@@ -148,27 +139,7 @@ export function ExportDialog({
 
   const exportAsPNG = async () => {
     const includeImageBackground = getBackgroundIncludeFlag();
-
-    if (backgroundOption === "color-only") {
-      const tempBackground = editor.canvas
-        .getObjects()
-        .find((obj: any) => obj.name === "backgroundImage");
-
-      if (tempBackground) {
-        editor.canvas.remove(tempBackground);
-        editor.canvas.renderAll();
-      }
-
-      editor.savePng(true);
-
-      if (tempBackground) {
-        editor.canvas.add(tempBackground);
-        tempBackground.moveTo(1);
-        editor.canvas.renderAll();
-      }
-    } else {
-      editor.savePng(includeImageBackground);
-    }
+    editor.savePng(includeImageBackground);
   };
 
   const exportSinglePDF = async () => {
@@ -178,7 +149,7 @@ export function ExportDialog({
     let tempBackground: fabric.Image | null = null;
     let originalWorkspaceFill: string | undefined;
 
-    if (backgroundOption === "color-only" || backgroundOption === "none") {
+    if (backgroundOption === "none") {
       const backgroundImage = editor.canvas
         .getObjects()
         .find((obj: any) => obj.name === "backgroundImage");
@@ -187,16 +158,10 @@ export function ExportDialog({
         editor.canvas.remove(backgroundImage);
         editor.canvas.renderAll();
       }
-    }
-
-    if (backgroundOption === "none") {
       originalWorkspaceFill = workspace.fill as string;
       workspace.set({ fill: "transparent" });
       editor.canvas.renderAll();
-    } else if (
-      backgroundOption === "color-only" ||
-      backgroundOption === "include"
-    ) {
+    } else {
       const currentFill = workspace.fill || "#ffffff";
       workspace.set({ fill: currentFill });
       editor.canvas.renderAll();
@@ -244,7 +209,7 @@ export function ExportDialog({
     let tempBackground: fabric.Image | null = null;
     let originalWorkspaceFill: string | undefined;
 
-    if (backgroundOption === "color-only" || backgroundOption === "none") {
+    if (backgroundOption === "none") {
       const backgroundImage = editor.canvas
         .getObjects()
         .find((obj: any) => obj.name === "backgroundImage");
@@ -253,9 +218,6 @@ export function ExportDialog({
         editor.canvas.remove(backgroundImage);
         editor.canvas.renderAll();
       }
-    }
-
-    if (backgroundOption === "none") {
       originalWorkspaceFill = workspace.fill as string;
       workspace.set({ fill: "transparent" });
       editor.canvas.renderAll();
@@ -350,10 +312,8 @@ export function ExportDialog({
     switch (backgroundOption) {
       case "include":
         return "Include both background color and image (if present)";
-      case "color-only":
-        return "Include background color only, exclude images";
       case "none":
-        return "Exclude all backgrounds";
+        return "Exclude background";
       default:
         return "";
     }
@@ -475,26 +435,7 @@ export function ExportDialog({
                     htmlFor="bg-include"
                     className="cursor-pointer text-sm"
                   >
-                    Include All Backgrounds
-                  </Label>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="radio"
-                    id="bg-color-only"
-                    name="background"
-                    value="color-only"
-                    checked={backgroundOption === "color-only"}
-                    onChange={(e) => setBackgroundOption(e.target.value as any)}
-                    className="h-4 w-4"
-                    disabled={!hasBackgroundColor}
-                  />
-                  <Label
-                    htmlFor="bg-color-only"
-                    className={`cursor-pointer text-sm ${!hasBackgroundColor ? "text-muted-foreground" : ""}`}
-                  >
-                    Color Only (No Images)
+                    Include Background
                   </Label>
                 </div>
 
@@ -514,7 +455,6 @@ export function ExportDialog({
                 </div>
               </div>
 
-              {/* Description */}
               <div className="rounded border border-blue-200 bg-blue-50 p-3 text-xs text-blue-700">
                 <p className="mb-1 font-medium">Selected Option:</p>
                 <p>{getBackgroundOptionDescription()}</p>
