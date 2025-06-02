@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Database,
   Plus,
@@ -232,7 +232,7 @@ export const DynamicTextSidebar = ({
     onChangeActiveTool("select");
   };
 
-  const handleAddQRCode = () => {
+  const handleAddQRCode = async () => {
     if (!editor || !selectedSource || !selectedField) return;
 
     const data = dataSources[selectedSource]?.data;
@@ -257,29 +257,26 @@ export const DynamicTextSidebar = ({
     qrContainer.style.visibility = "hidden";
     document.body.appendChild(qrContainer);
 
-    import("react-dom").then((ReactDOM) => {
-      ReactDOM.render(
-        <QRCodeSVG
-          value={qrUrl}
-          size={200}
-          bgColor="#ffffff"
-          fgColor="#000000"
-          level="Q"
-          id={qrId}
-        />,
-        qrContainer,
-        () => {
-          const svgElement = qrContainer.querySelector("svg");
-          if (!svgElement) {
-            toast({
-              variant: "destructive",
-              title: "Error",
-              description: "Failed to generate QR code SVG.",
-            });
-            document.body.removeChild(qrContainer);
-            return;
-          }
+    const QRCodeSVG = (await import("react-qr-code")).default;
+    const ReactDOMClient = await import("react-dom/client");
 
+    const root = ReactDOMClient.createRoot(qrContainer);
+
+    await new Promise<void>((resolve) => {
+      root.render(
+        React.createElement(QRCodeSVG, {
+          value: qrUrl,
+          size: 200,
+          bgColor: "#ffffff",
+          fgColor: "#000000",
+          level: "Q",
+          id: qrId,
+        }),
+      );
+
+      const waitForSVG = () => {
+        const svgElement = qrContainer.querySelector("svg");
+        if (svgElement) {
           const svgString = new XMLSerializer().serializeToString(svgElement);
 
           fabric.loadSVGFromString(svgString, (objects, options) => {
@@ -302,18 +299,23 @@ export const DynamicTextSidebar = ({
             editor.canvas.setActiveObject(qrGroup);
             editor.canvas.renderAll();
 
-            // Clean up
-            document.body.removeChild(qrContainer);
-
             toast({
               title: "Success",
               description: `QR code for ${qrUrl} added to canvas.`,
             });
 
             onChangeActiveTool("select");
+
+            root.unmount();
+            document.body.removeChild(qrContainer);
+            resolve();
           });
-        },
-      );
+        } else {
+          setTimeout(waitForSVG, 10);
+        }
+      };
+
+      waitForSVG();
     });
   };
 

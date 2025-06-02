@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { fabric } from "fabric";
 import * as ReactDOM from "react-dom";
+import { createRoot } from "react-dom/client";
 
 interface QRCodeSidebarProps {
   editor: Editor | undefined;
@@ -41,14 +42,14 @@ export const QRCodeSidebar = ({
 
     const qrUrl = text;
 
-    // Create a temporary container to render QR code SVG
     const qrContainer = document.createElement("div");
     qrContainer.style.position = "absolute";
     qrContainer.style.visibility = "hidden";
     document.body.appendChild(qrContainer);
 
-    // Render QRCodeSVG to get the SVG string
-    ReactDOM.render(
+    const root = createRoot(qrContainer);
+
+    root.render(
       <QRCodeSVG
         value={qrUrl}
         size={200}
@@ -56,32 +57,21 @@ export const QRCodeSidebar = ({
         fgColor="#000000"
         level="Q"
       />,
-      qrContainer,
-      () => {
-        const svgElement = qrContainer.querySelector("svg");
-        if (!svgElement) {
-          toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Failed to generate QR code SVG.",
-          });
-          document.body.removeChild(qrContainer);
-          return;
-        }
+    );
 
-        // Get SVG string
+    const waitForSVG = () => {
+      const svgElement = qrContainer.querySelector("svg");
+      if (svgElement) {
         const svgString = new XMLSerializer().serializeToString(svgElement);
 
-        // Load SVG into Fabric.js
         fabric.loadSVGFromString(svgString, (objects, options) => {
           const qrGroup = fabric.util.groupSVGElements(objects, {
             ...options,
             selectable: true,
             hasControls: true,
-            qrUrl: qrUrl, // Store the URL for reference
+            qrUrl: qrUrl,
           });
 
-          // Scale and position the QR code
           qrGroup.scaleToWidth(200);
           qrGroup.scaleToHeight(200);
           editor.canvas.centerObject(qrGroup);
@@ -89,7 +79,7 @@ export const QRCodeSidebar = ({
           editor.canvas.setActiveObject(qrGroup);
           editor.canvas.renderAll();
 
-          // Clean up
+          root.unmount();
           document.body.removeChild(qrContainer);
 
           toast({
@@ -99,8 +89,13 @@ export const QRCodeSidebar = ({
 
           onChangeActiveTool("select");
         });
-      },
-    );
+      } else {
+        // Wait a moment and try again
+        setTimeout(waitForSVG, 10);
+      }
+    };
+
+    waitForSVG();
   };
 
   return (
