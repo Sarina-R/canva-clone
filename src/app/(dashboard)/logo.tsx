@@ -14,7 +14,12 @@ export const Logo = () => {
     <Link href="/">
       <div className="flex h-[68px] items-center gap-x-2 px-4 transition hover:opacity-75">
         <div className="relative size-8">
-          <Image src="/logo.png" alt="AVIS Canvas" fill />
+          <Image
+            src="/logo.png"
+            alt="AVIS Canvas"
+            fill
+            className="object-contain"
+          />
         </div>
         <h1 className={cn(font.className, "text-xl font-bold")}>AVIS Canvas</h1>
       </div>

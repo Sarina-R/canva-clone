@@ -9,7 +9,7 @@ export const Logo = () => {
           src="/logo.png"
           fill
           alt="AVIS Canvas"
-          className="shrink-0 transition hover:opacity-75"
+          className="shrink-0 object-contain transition hover:opacity-75"
         />
       </div>
     </Link>
