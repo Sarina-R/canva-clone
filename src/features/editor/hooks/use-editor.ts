@@ -498,6 +498,7 @@ const buildEditor = ({
                 lockScalingY: isBackgroundImageLocked,
                 lockRotation: isBackgroundImageLocked,
                 name: "backgroundImage",
+                // @ts-ignore
                 isBackgroundImage: true,
                 isLocked: isBackgroundImageLocked,
                 excludeFromExport: false,
@@ -650,7 +651,6 @@ const buildEditor = ({
       if (!current) continue;
 
       const newValue = `https://avisengien/${current.toString()}`;
-
       const tempQrContainer = document.createElement("div");
       tempQrContainer.style.position = "absolute";
       tempQrContainer.style.visibility = "hidden";
@@ -658,10 +658,12 @@ const buildEditor = ({
 
       try {
         const QRCodeSVG = (await import("react-qr-code")).default;
-        const ReactDOM = await import("react-dom");
+        const ReactDOMClient = await import("react-dom/client");
 
-        await new Promise<void>((resolve) => {
-          ReactDOM.render(
+        await new Promise<void>(async (resolve) => {
+          const root = ReactDOMClient.createRoot(tempQrContainer);
+
+          root.render(
             React.createElement(QRCodeSVG, {
               value: newValue,
               size: 200,
@@ -669,51 +671,71 @@ const buildEditor = ({
               fgColor: "#000000",
               level: "Q",
             }),
-            tempQrContainer,
-            async () => {
-              const svgElement = tempQrContainer.querySelector("svg");
-              if (svgElement) {
-                const svgString = new XMLSerializer().serializeToString(
-                  svgElement,
-                );
+          );
 
-                const currentProps = {
-                  left: obj.left,
-                  top: obj.top,
-                  scaleX: obj.scaleX,
-                  scaleY: obj.scaleY,
-                  angle: obj.angle,
-                  dataSourceId,
-                  fieldPath,
-                  itemIndex,
-                  isDynamic: true,
-                  qrUrl: newValue,
-                  qrSvgString: svgString,
-                };
+          // ✅ Wait until the SVG is actually rendered
+          const svgElement = await new Promise<SVGSVGElement | null>(
+            (resolveSvg) => {
+              const maxWait = 500;
+              const interval = 10;
+              let waited = 0;
 
-                await new Promise<void>((resolveInner) => {
-                  fabric.loadSVGFromString(
-                    `<svg xmlns="http://www.w3.org/2000/svg">${svgString}</svg>`,
-                    (objects, options) => {
-                      const qrGroup = fabric.util.groupSVGElements(objects, {
-                        ...options,
-                        ...currentProps,
-                        selectable: true,
-                        hasControls: true,
-                      });
+              const check = () => {
+                const svg = tempQrContainer.querySelector("svg");
+                if (svg) {
+                  resolveSvg(svg as SVGSVGElement);
+                } else if (waited >= maxWait) {
+                  resolveSvg(null);
+                } else {
+                  waited += interval;
+                  setTimeout(check, interval);
+                }
+              };
 
-                      canvas.remove(obj);
-                      canvas.add(qrGroup);
-                      canvas.renderAll();
-                      updatedCount++;
-                      resolveInner();
-                    },
-                  );
-                });
-              }
-              resolve();
+              check();
             },
           );
+
+          if (svgElement) {
+            const svgString = new XMLSerializer().serializeToString(svgElement);
+
+            const currentProps = {
+              left: obj.left,
+              top: obj.top,
+              scaleX: obj.scaleX,
+              scaleY: obj.scaleY,
+              angle: obj.angle,
+              dataSourceId,
+              fieldPath,
+              itemIndex,
+              isDynamic: true,
+              qrUrl: newValue,
+              qrSvgString: svgString,
+            };
+
+            await new Promise<void>((resolveInner) => {
+              fabric.loadSVGFromString(
+                `<svg xmlns="http://www.w3.org/2000/svg">${svgString}</svg>`,
+                (objects, options) => {
+                  const qrGroup = fabric.util.groupSVGElements(objects, {
+                    ...options,
+                    ...currentProps,
+                    selectable: true,
+                    hasControls: true,
+                  });
+
+                  canvas.remove(obj);
+                  canvas.add(qrGroup);
+                  canvas.renderAll();
+                  updatedCount++;
+                  resolveInner();
+                },
+              );
+            });
+          }
+
+          root.unmount();
+          resolve();
         });
       } finally {
         document.body.removeChild(tempQrContainer);
@@ -765,6 +787,7 @@ const buildEditor = ({
           lockScalingY: locked,
           lockRotation: locked,
           name: "backgroundImage",
+          // @ts-ignore
           isBackgroundImage: true,
           isLocked: locked,
           imageUrl: imageUrl,
@@ -809,6 +832,7 @@ const buildEditor = ({
       lockScalingX: locked,
       lockScalingY: locked,
       lockRotation: locked,
+      // @ts-ignore
       isLocked: locked,
     });
 
@@ -885,6 +909,7 @@ const buildEditor = ({
   canvas.on("object:modified", (e) => {
     if (
       e.target &&
+      // @ts-ignore
       (e.target.name === "backgroundImage" || e.target.isBackgroundImage)
     ) {
       console.log("🔄 Background object modified, syncing state...");
