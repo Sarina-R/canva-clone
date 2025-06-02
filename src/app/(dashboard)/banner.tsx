@@ -36,7 +36,7 @@ export const Banner = () => {
       </div>
       <div className="flex flex-col gap-y-2">
         <h1 className="text-xl font-semibold md:text-3xl">
-          Visualize your ideas with CnvAI
+          Visualize your ideas with AVIS Canvas
         </h1>
         <p className="mb-2 text-xs md:text-sm">
           Turn inspiration into design in no time. Simply upload an image and
