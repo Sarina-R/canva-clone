@@ -34,7 +34,6 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import QRCodeSVG from "react-qr-code";
 import { fabric } from "fabric";
 
 type FieldNode = {
@@ -80,13 +79,21 @@ export const DynamicTextSidebar = ({
     }
   }, [dataSources, activeTool]);
 
+  const formatFieldName = (fieldName: string): string => {
+    return fieldName
+      .replace(/_/g, " ")
+      .split(" ")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(" ");
+  };
+
   const handleAddSource = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSourceId || !newSourceUrl) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Source ID and API URL are required.",
+        description: "Source name and API URL are required.",
       });
       return;
     }
@@ -134,7 +141,8 @@ export const DynamicTextSidebar = ({
       toast({
         variant: "destructive",
         title: "Error",
-        description: `Failed to fetch data from ${newSourceUrl}`,
+        description:
+          "Failed to connect to the data source. Please check your URL and try again.",
       });
     } finally {
       setIsLoading(false);
@@ -168,14 +176,14 @@ export const DynamicTextSidebar = ({
       });
       toast({
         title: "Success",
-        description: "Data source refreshed successfully.",
+        description: "Data refreshed successfully.",
       });
     } catch (error) {
       console.error("Error refreshing data source:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: `Failed to refresh data from ${source.endpoint}`,
+        description: "Failed to refresh data. Please try again.",
       });
     } finally {
       setIsLoading(false);
@@ -243,7 +251,7 @@ export const DynamicTextSidebar = ({
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Invalid user ID for QR code generation.",
+        description: "Invalid data for QR code generation.",
       });
       return;
     }
@@ -301,7 +309,7 @@ export const DynamicTextSidebar = ({
 
             toast({
               title: "Success",
-              description: `QR code for ${qrUrl} added to canvas.`,
+              description: `QR code added to canvas.`,
             });
 
             onChangeActiveTool("select");
@@ -324,6 +332,15 @@ export const DynamicTextSidebar = ({
       return [];
     }
 
+    if (
+      basePath === "" &&
+      typeof data === "object" &&
+      !Array.isArray(data) &&
+      data.data
+    ) {
+      return buildFieldTree(data.data, "");
+    }
+
     if (Array.isArray(data)) {
       if (data.length > 0 && typeof data[0] === "object" && data[0] !== null) {
         return buildFieldTree(data[0], basePath);
@@ -331,8 +348,8 @@ export const DynamicTextSidebar = ({
         return [
           {
             path: basePath,
-            label: basePath.split(".").pop() || "array",
-            type: "array",
+            label: formatFieldName(basePath.split(".").pop() || "list"),
+            type: "list",
             value: JSON.stringify(data),
           },
         ];
@@ -347,17 +364,17 @@ export const DynamicTextSidebar = ({
         if (value === null || value === undefined) {
           return {
             path,
-            label: key,
-            type: "null",
-            value: "null",
+            label: formatFieldName(key),
+            type: "empty",
+            value: "empty",
           };
         }
 
         if (Array.isArray(value)) {
           return {
             path,
-            label: key,
-            type: "array",
+            label: formatFieldName(key),
+            type: "list",
             children: buildFieldTree(value, path),
             isExpanded: expandedNodes.has(path),
           };
@@ -366,8 +383,8 @@ export const DynamicTextSidebar = ({
         if (valueType === "object") {
           return {
             path,
-            label: key,
-            type: "object",
+            label: formatFieldName(key),
+            type: "group",
             children: buildFieldTree(value, path),
             isExpanded: expandedNodes.has(path),
           };
@@ -375,7 +392,7 @@ export const DynamicTextSidebar = ({
 
         return {
           path,
-          label: key,
+          label: formatFieldName(key),
           type: valueType,
           value: String(value),
         };
@@ -385,7 +402,7 @@ export const DynamicTextSidebar = ({
     return [
       {
         path: basePath,
-        label: basePath,
+        label: formatFieldName(basePath),
         type: typeof data,
         value: String(data),
       },
@@ -398,10 +415,10 @@ export const DynamicTextSidebar = ({
     const isSelected = selectedField === node.path;
 
     return (
-      <div key={node.path} className="mb-1">
+      <div key={node.path} className="mb-1 rounded-lg border">
         <div
           className={cn(
-            "flex items-center rounded-md p-2 transition-colors hover:bg-muted",
+            "flex cursor-pointer items-center rounded-md px-1 py-2 transition-colors hover:bg-muted",
             isSelected && "bg-accent font-medium",
           )}
           onClick={() => {
@@ -436,11 +453,12 @@ export const DynamicTextSidebar = ({
               </Button>
             )}
           </div>
-          <div className="flex-1 overflow-hidden">
+          <div className="flex flex-col space-y-2">
             <span className="font-medium">{node.label}</span>
-            <span className="ml-1 text-sm text-muted-foreground">
-              {hasChildren ? node.type : node.value || node.type}
+            <span className="text-sm text-muted-foreground">
+              {hasChildren ? `(${node.type})` : node.value || node.type}
             </span>
+            <div className="flex-1 overflow-hidden"></div>
           </div>
         </div>
         {hasChildren && isExpanded && (
@@ -509,8 +527,8 @@ export const DynamicTextSidebar = ({
       )}
     >
       <ToolSidebarHeader
-        title="Dynamic Text & QR Code"
-        description="Add dynamic text or QR codes from API data sources"
+        title="Dynamic Content"
+        description="Add dynamic text or QR codes from your data"
       />
       <ScrollArea className="flex-1">
         <div className="max-w-80 space-y-6 p-4">
@@ -519,12 +537,12 @@ export const DynamicTextSidebar = ({
               <CardContent className="flex flex-col items-center justify-center pt-6">
                 <Database className="mb-4 h-10 w-10 text-muted-foreground" />
                 <CardTitle className="text-lg">No Data Sources</CardTitle>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Add a data source to create dynamic content or QR codes
+                <p className="mt-2 text-center text-sm text-muted-foreground">
+                  Connect a data source to create dynamic content
                 </p>
                 <Button className="mt-4" onClick={() => setShowAddDialog(true)}>
                   <Plus className="mr-2 h-4 w-4" />
-                  Add Data Source
+                  Connect Data Source
                 </Button>
               </CardContent>
             </Card>
@@ -532,21 +550,21 @@ export const DynamicTextSidebar = ({
             <>
               <Button className="w-full" onClick={() => setShowAddDialog(true)}>
                 <Plus className="mr-2 h-4 w-4" />
-                Add Data Source
+                Connect Data Source
               </Button>
               <div className="space-y-2">
-                <Label htmlFor="select-source">Select Data Source</Label>
+                <Label htmlFor="select-source">Choose Data Source</Label>
                 <Select
                   value={selectedSource || ""}
                   onValueChange={handleSourceSelect}
                 >
                   <SelectTrigger id="select-source">
-                    <SelectValue placeholder="Choose a data source" />
+                    <SelectValue placeholder="Select your data source" />
                   </SelectTrigger>
                   <SelectContent>
                     {Object.keys(dataSources).map((sourceId) => (
                       <SelectItem key={sourceId} value={sourceId}>
-                        {sourceId}
+                        {formatFieldName(sourceId)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -557,10 +575,7 @@ export const DynamicTextSidebar = ({
                   <Card>
                     <CardContent className="pt-4 text-sm text-muted-foreground">
                       <div>
-                        Endpoint: {dataSources[selectedSource].endpoint}
-                      </div>
-                      <div>
-                        Updated:{" "}
+                        Last Updated:{" "}
                         {formatTimestamp(dataSources[selectedSource].timestamp)}
                       </div>
                     </CardContent>
@@ -568,7 +583,7 @@ export const DynamicTextSidebar = ({
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle className="text-sm font-medium">
-                        Fields
+                        Available Fields
                       </CardTitle>
                       <Button
                         variant="outline"
@@ -585,26 +600,29 @@ export const DynamicTextSidebar = ({
                         Refresh
                       </Button>
                     </CardHeader>
-                    <CardContent>
-                      <div className="max-h-60 overflow-y-auto rounded-md border p-2">
-                        {fieldTree.map((node) => renderFieldNode(node))}
-                      </div>
-                    </CardContent>
+                    {/* <CardContent> */}
+                    <div className="max-h-60 overflow-y-auto rounded-md p-2">
+                      {fieldTree.map((node) => renderFieldNode(node))}
+                    </div>
+                    {/* </CardContent> */}
                   </Card>
                   {selectedField && (
                     <Card>
                       <CardHeader>
                         <CardTitle className="text-sm font-medium">
-                          Add Dynamic Content
+                          Add Content
                         </CardTitle>
                         <p className="text-xs text-muted-foreground">
-                          {selectedSource} → {selectedField}
+                          {formatFieldName(selectedSource)} →{" "}
+                          {formatFieldName(
+                            selectedField.split(".").pop() || selectedField,
+                          )}
                         </p>
                       </CardHeader>
                       <CardContent>
                         {getArrayItemCount() > 0 && (
                           <div className="mb-4 space-y-2">
-                            <Label htmlFor="item-index">Item Index</Label>
+                            <Label htmlFor="item-index">Item Number</Label>
                             <div className="flex items-center gap-2">
                               <Input
                                 id="item-index"
@@ -620,7 +638,7 @@ export const DynamicTextSidebar = ({
                                 className="w-20"
                               />
                               <span className="text-xs text-muted-foreground">
-                                of {getArrayItemCount() - 1}
+                                of {getArrayItemCount()}
                               </span>
                             </div>
                           </div>
@@ -631,7 +649,7 @@ export const DynamicTextSidebar = ({
                             onClick={handleAddDynamicText}
                             disabled={isLoading}
                           >
-                            Add Dynamic Text
+                            Add Text
                           </Button>
                           <Button
                             className="w-full"
@@ -654,7 +672,7 @@ export const DynamicTextSidebar = ({
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Add Data Source</DialogTitle>
+            <DialogTitle>Connect Data Source</DialogTitle>
             <Button
               variant="ghost"
               size="icon"
@@ -666,12 +684,12 @@ export const DynamicTextSidebar = ({
           </DialogHeader>
           <form onSubmit={handleAddSource} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="source-id">Source ID</Label>
+              <Label htmlFor="source-id">Data Source Name</Label>
               <Input
                 id="source-id"
                 value={newSourceId}
                 onChange={(e) => setNewSourceId(e.target.value)}
-                placeholder="e.g., users"
+                placeholder="e.g., Customer List"
                 disabled={isLoading}
               />
             </div>
@@ -686,7 +704,7 @@ export const DynamicTextSidebar = ({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="source-method">Method</Label>
+              <Label htmlFor="source-method">Request Method</Label>
               <Select
                 value={newSourceMethod}
                 onValueChange={setNewSourceMethod}
@@ -703,12 +721,12 @@ export const DynamicTextSidebar = ({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="source-headers">Headers (JSON)</Label>
+              <Label htmlFor="source-headers">Headers (JSON format)</Label>
               <Textarea
                 id="source-headers"
                 value={newSourceHeaders}
                 onChange={(e) => setNewSourceHeaders(e.target.value)}
-                placeholder='e.g., {"Authorization": "Bearer token"}'
+                placeholder='{"Authorization": "Bearer your-token"}'
                 rows={4}
                 disabled={isLoading}
               />
@@ -722,7 +740,7 @@ export const DynamicTextSidebar = ({
                 Cancel
               </Button>
               <Button type="submit" disabled={isLoading}>
-                {isLoading ? "Adding..." : "Add Data Source"}
+                {isLoading ? "Connecting..." : "Connect"}
               </Button>
             </div>
           </form>
