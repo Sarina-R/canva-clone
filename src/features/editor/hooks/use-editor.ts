@@ -62,6 +62,10 @@ const buildEditor = ({
   workspaceDimensions,
   setWorkspaceDimensions,
 }: BuildEditorProps): Editor => {
+  const getWorkspace = () => {
+    return canvas.getObjects().find((object) => object.name === "clip");
+  };
+
   const syncBackgroundState = () => {
     if (onBackgroundStateChange) {
       const backgroundInfo = getBackgroundImageInfo();
@@ -549,10 +553,6 @@ const buildEditor = ({
         }, 100);
       });
     }
-  };
-
-  const getWorkspace = () => {
-    return canvas.getObjects().find((object) => object.name === "clip");
   };
 
   const center = (object: fabric.Object) => {
