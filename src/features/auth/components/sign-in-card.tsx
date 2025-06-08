@@ -5,7 +5,7 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { FaGithub } from "react-icons/fa";
 import { FcGoogle } from "react-icons/fc";
-import { TriangleAlert } from "lucide-react";
+import { Key, TriangleAlert } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 
 import { Input } from "@/components/ui/input";
@@ -36,7 +36,7 @@ export const SignInCard = () => {
     });
   };
 
-  const onProviderSignIn = (provider: "github" | "google") => {
+  const onProviderSignIn = (provider: "github" | "google" | "keycloak") => {
     signIn(provider, { callbackUrl: "/" });
   };
 
@@ -84,6 +84,15 @@ export const SignInCard = () => {
           >
             <FcGoogle className="absolute left-2.5 top-2.5 mr-2 size-5" />
             Continue with Google
+          </Button>
+          <Button
+            onClick={() => onProviderSignIn("keycloak")}
+            variant="outline"
+            size="lg"
+            className="relative w-full"
+          >
+            <Key className="absolute left-2.5 top-2.5 mr-2 size-5" />
+            Continue AVIS Accounts
           </Button>
           <Button
             onClick={() => onProviderSignIn("github")}

@@ -5,7 +5,7 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { FaGithub } from "react-icons/fa";
 import { FcGoogle } from "react-icons/fc";
-import { TriangleAlert } from "lucide-react";
+import { Key, TriangleAlert } from "lucide-react";
 
 import { useSignUp } from "@/features/auth/hooks/use-sign-up";
 
@@ -27,7 +27,7 @@ export const SignUpCard = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const onProviderSignUp = (provider: "github" | "google") => {
+  const onProviderSignUp = (provider: "github" | "google" | "keycloak") => {
     signIn(provider, { callbackUrl: "/" });
   };
 
@@ -114,6 +114,16 @@ export const SignUpCard = () => {
           >
             <FcGoogle className="absolute left-2.5 top-2.5 mr-2 size-5" />
             Continue with Google
+          </Button>
+          <Button
+            disabled={mutation.isPending}
+            onClick={() => onProviderSignUp("keycloak")}
+            variant="outline"
+            size="lg"
+            className="relative w-full"
+          >
+            <Key className="absolute left-2.5 top-2.5 mr-2 size-5" />
+            Continue with Keycloak
           </Button>
           <Button
             disabled={mutation.isPending}
