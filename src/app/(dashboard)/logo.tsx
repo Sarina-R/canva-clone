@@ -16,12 +16,12 @@ export const Logo = () => {
         <div className="relative size-8">
           <Image
             src="/logo.png"
-            alt="AVIS Canvas"
+            alt="AVIS Design"
             fill
             className="object-contain"
           />
         </div>
-        <h1 className={cn(font.className, "text-xl font-bold")}>AVIS Canvas</h1>
+        <h1 className={cn(font.className, "text-xl font-bold")}>AVIS Design</h1>
       </div>
     </Link>
   );

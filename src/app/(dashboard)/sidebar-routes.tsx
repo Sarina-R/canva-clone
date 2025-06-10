@@ -50,7 +50,7 @@ export const SidebarRoutes = () => {
               size="lg"
             >
               <Crown className="mr-2 size-4 fill-yellow-500 text-yellow-500" />
-              Upgrade to AVIS Canvas Pro
+              Upgrade to AVIS Design Pro
             </Button>
           </div>
           <div className="px-3">
@@ -110,7 +110,7 @@ export const SidebarRoutes = () => {
       </div>
       <ul className="flex flex-col gap-y-1 px-3">
         <SidebarItem
-          href="support@avisengine.com"
+          href="mailto:support@avisengine.com"
           icon={MessageCircleQuestion}
           label="Get Help"
         />

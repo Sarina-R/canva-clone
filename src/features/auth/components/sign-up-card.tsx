@@ -154,11 +154,9 @@ import { signIn } from "next-auth/react";
 
 export const SignUpCard = () => {
   useEffect(() => {
-    // Trigger Keycloak sign-in immediately on component mount
     signIn("keycloak", { callbackUrl: "/" });
   }, []);
 
-  // Optional: Show a loading message while redirecting to Keycloak
   return (
     <div className="flex h-full w-full items-center justify-center">
       <p>Redirecting to AVIS Accounts...</p>

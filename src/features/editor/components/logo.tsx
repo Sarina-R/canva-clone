@@ -8,7 +8,7 @@ export const Logo = () => {
         <Image
           src="/logo.png"
           fill
-          alt="AVIS Canvas"
+          alt="AVIS Design"
           className="shrink-0 object-contain transition hover:opacity-75"
         />
       </div>
