@@ -120,7 +120,7 @@ export default {
 
         const ironSession = await getIronSessionData();
         ironSession.id = user.id;
-        ironSession.email = user.email;
+        ironSession.email = user.email || "";
         ironSession.isLoggedIn = true;
         await ironSession.save();
       }
