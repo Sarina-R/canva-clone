@@ -8,6 +8,8 @@ import Google from "next-auth/providers/google";
 import Keycloak from "next-auth/providers/keycloak";
 import Credentials from "next-auth/providers/credentials";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
+import { getIronSession } from "iron-session";
+import { cookies } from "next/headers";
 
 import { db } from "@/db/drizzle";
 import { users } from "@/db/schema";
@@ -27,6 +29,22 @@ declare module "@auth/core/jwt" {
   interface JWT {
     id: string | undefined;
   }
+}
+
+type SessionData = {
+  id?: string;
+  email?: string;
+  isLoggedIn: boolean;
+};
+
+const sessionOptions = {
+  password: process.env.NEXTAUTH_SECRET!,
+  cookieName: "session",
+};
+
+export async function getIronSessionData() {
+  const session = await getIronSession<SessionData>(cookies(), sessionOptions);
+  return session;
 }
 
 export default {
@@ -69,6 +87,12 @@ export default {
           return null;
         }
 
+        const session = await getIronSessionData();
+        session.id = user.id;
+        session.email = user.email;
+        session.isLoggedIn = true;
+        await session.save();
+
         return user;
       },
     }),
@@ -90,9 +114,15 @@ export default {
 
       return session;
     },
-    jwt({ token, user }) {
+    async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
+
+        const ironSession = await getIronSessionData();
+        ironSession.id = user.id;
+        ironSession.email = user.email;
+        ironSession.isLoggedIn = true;
+        await ironSession.save();
       }
 
       return token;
