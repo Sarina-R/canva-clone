@@ -21,13 +21,13 @@ const CredentialsSchema = z.object({
 
 declare module "next-auth/jwt" {
   interface JWT {
-    id?: string;
+    id: string | undefined;
   }
 }
 
 declare module "@auth/core/jwt" {
   interface JWT {
-    id?: string;
+    id: string | undefined;
   }
 }
 
@@ -43,7 +43,8 @@ const sessionOptions = {
 };
 
 export async function getIronSessionData() {
-  return await getIronSession<SessionData>(cookies(), sessionOptions);
+  const session = await getIronSession<SessionData>(cookies(), sessionOptions);
+  return session;
 }
 
 export default {
@@ -58,19 +59,22 @@ export default {
     Credentials({
       credentials: {
         email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }, // Fixed typo
+        pasword: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
         const validatedFields = CredentialsSchema.safeParse(credentials);
+
         if (!validatedFields.success) {
           return null;
         }
 
         const { email, password } = validatedFields.data;
+
         const query = await db
           .select()
           .from(users)
           .where(eq(users.email, email));
+
         const user = query[0];
 
         if (!user || !user.password) {
@@ -78,9 +82,16 @@ export default {
         }
 
         const passwordsMatch = await bcrypt.compare(password, user.password);
+
         if (!passwordsMatch) {
           return null;
         }
+
+        const session = await getIronSessionData();
+        session.id = user.id;
+        session.email = user.email;
+        session.isLoggedIn = true;
+        await session.save();
 
         return user;
       },
@@ -100,19 +111,21 @@ export default {
       if (token.id) {
         session.user.id = token.id;
       }
+
       return session;
     },
     async jwt({ token, user }) {
       if (user) {
-        token.id = user.id ?? undefined;
+        token.id = user.id;
+
         const ironSession = await getIronSessionData();
-        ironSession.id = user.id ?? undefined;
-        ironSession.email = user.email ?? "";
+        ironSession.id = user.id;
+        ironSession.email = user.email || "";
         ironSession.isLoggedIn = true;
         await ironSession.save();
       }
+
       return token;
     },
   },
-  debug: process.env.NODE_ENV === "development", // Enable debug mode for development
 } satisfies NextAuthConfig;
