@@ -14,6 +14,9 @@ import {
   Trash,
   SquareSplitHorizontal,
   Copy,
+  MoveHorizontal,
+  AlignVerticalJustifyCenter,
+  AlignHorizontalJustifyCenter,
 } from "lucide-react";
 
 import { isTextType } from "@/features/editor/utils";
@@ -378,6 +381,28 @@ export const Toolbar = ({
             variant="ghost"
           >
             <ArrowDown className="size-4" />
+          </Button>
+        </Hint>
+      </div>
+      <div className="flex h-full items-center justify-center">
+        <Hint label="Center horizontally" side="bottom" sideOffset={5}>
+          <Button
+            onClick={() => editor?.centerObjectsHorizontally()}
+            size="icon"
+            variant="ghost"
+          >
+            <AlignHorizontalJustifyCenter className="size-4" />
+          </Button>
+        </Hint>
+      </div>
+      <div className="flex h-full items-center justify-center">
+        <Hint label="Center vertically" side="bottom" sideOffset={5}>
+          <Button
+            onClick={() => editor?.centerObjectsVertically()}
+            size="icon"
+            variant="ghost"
+          >
+            <AlignVerticalJustifyCenter className="size-4" />
           </Button>
         </Hint>
       </div>

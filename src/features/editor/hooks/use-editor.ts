@@ -1374,6 +1374,66 @@ const buildEditor = ({
       return value;
     },
     selectedObjects,
+    centerObjects: () => {
+      const activeObjects = canvas.getActiveObjects();
+      if (activeObjects.length === 0) return;
+
+      const workspace = getWorkspace();
+      if (!workspace) return;
+
+      // Get workspace boundaries
+      const workspaceCenter = workspace.getCenterPoint();
+
+      activeObjects.forEach((obj) => {
+        // Center the object at workspace center
+        obj.setPositionByOrigin(
+          new fabric.Point(workspaceCenter.x, workspaceCenter.y),
+          "center",
+          "center",
+        );
+      });
+
+      canvas.renderAll();
+      save();
+    },
+    centerObjectsHorizontally: () => {
+      const activeObjects = canvas.getActiveObjects();
+      if (activeObjects.length === 0) return;
+
+      const workspace = getWorkspace();
+      if (!workspace) return;
+
+      const workspaceCenter = workspace.getCenterPoint();
+
+      activeObjects.forEach((obj) => {
+        obj.set({
+          left: workspaceCenter.x,
+          originX: "center",
+        });
+      });
+
+      canvas.renderAll();
+      save();
+    },
+    centerObjectsVertically: () => {
+      const activeObjects = canvas.getActiveObjects();
+      if (activeObjects.length === 0) return;
+
+      const workspace = getWorkspace();
+      if (!workspace) return;
+
+      const workspaceCenter = workspace.getCenterPoint();
+
+      activeObjects.forEach((obj) => {
+        obj.set({
+          top: workspaceCenter.y,
+          originY: "center",
+        });
+      });
+
+      canvas.renderAll();
+      save();
+    },
   };
 };
 
