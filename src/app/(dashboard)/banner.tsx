@@ -34,7 +34,7 @@ export const Banner: React.FC = () => {
   };
 
   return (
-    <div className="relative flex min-h-[248px] items-center gap-x-6 overflow-hidden rounded-xl p-6 text-white">
+    <div className="relative flex min-h-[248px] items-center gap-x-6 overflow-hidden rounded-xl bg-black p-6 text-white">
       <div className="absolute inset-0 z-0">
         <Squares
           direction="diagonal"
@@ -48,7 +48,7 @@ export const Banner: React.FC = () => {
       <div className="relative z-10 flex items-center gap-x-6">
         <div className="hidden size-28 items-center justify-center rounded-full bg-white/50 md:flex">
           <div className="flex size-20 items-center justify-center rounded-full bg-white">
-            <Sparkles className="h-20 fill-[#0073ff] text-[#0073ff]" />
+            <Sparkles className="h-20 fill-black text-black" />
           </div>
         </div>
         <div className="flex flex-col gap-y-2">
