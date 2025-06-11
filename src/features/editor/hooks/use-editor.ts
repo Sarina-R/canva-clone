@@ -38,6 +38,10 @@ let isBackgroundImageLocked = false;
 let backgroundImageUrl: string | null = null;
 let onBackgroundStateChange: ((state: any) => void) | null = null;
 
+let verticalLineX: fabric.Line | null = null;
+let horizontalLineY: fabric.Line | null = null;
+let snapThreshold = 10;
+
 const buildEditor = ({
   save,
   undo,
@@ -119,11 +123,37 @@ const buildEditor = ({
     }
   };
 
-  initializeCanvas();
+  const height = canvas.height || 1200;
+  const initializeGuideLines = () => {
+    verticalLineX = new fabric.Line([0, 0, 0, height], {
+      stroke: "#2196f3",
+      strokeWidth: 1,
+      strokeDashArray: [5, 5],
+      selectable: false,
+      evented: false,
+      visible: false,
+      excludeFromExport: true,
+    });
+
+    const width = canvas.width || 900;
+    horizontalLineY = new fabric.Line([0, 0, width, 0], {
+      stroke: "#2196f3",
+      strokeWidth: 1,
+      strokeDashArray: [5, 5],
+      selectable: false,
+      evented: false,
+      visible: false,
+      excludeFromExport: true,
+    });
+
+    canvas.add(verticalLineX);
+    canvas.add(horizontalLineY);
+  };
+
   const setBackgroundStateChangeListener = (callback: (state: any) => void) => {
     onBackgroundStateChange = callback;
   };
-
+  initializeGuideLines();
   const generateSaveOptions = () => {
     const workspace = getWorkspace() as fabric.Rect;
     const width =
@@ -918,6 +948,66 @@ const buildEditor = ({
       }, 50);
     }
   });
+
+  // Add this event handler in buildEditor
+  canvas.on("object:moving", (e) => {
+    if (!e.target) return;
+    const obj = e.target;
+    const workspace = getWorkspace();
+    if (!workspace) return;
+
+    const objCenter = obj.getCenterPoint();
+    const workspaceCenter = workspace.getCenterPoint();
+
+    // Check for vertical center alignment
+    if (Math.abs(objCenter.x - workspaceCenter.x) < snapThreshold) {
+      obj.set({
+        left: workspaceCenter.x - (obj.width! * obj.scaleX!) / 2,
+      });
+
+      if (verticalLineX) {
+        verticalLineX.set({
+          x1: workspaceCenter.x,
+          x2: workspaceCenter.x,
+          visible: true,
+        });
+      }
+    } else {
+      if (verticalLineX) {
+        verticalLineX.set({ visible: false });
+      }
+    }
+
+    // Check for horizontal center alignment
+    if (Math.abs(objCenter.y - workspaceCenter.y) < snapThreshold) {
+      obj.set({
+        top: workspaceCenter.y - (obj.height! * obj.scaleY!) / 2,
+      });
+
+      if (horizontalLineY) {
+        horizontalLineY.set({
+          y1: workspaceCenter.y,
+          y2: workspaceCenter.y,
+          visible: true,
+        });
+      }
+    } else {
+      if (horizontalLineY) {
+        horizontalLineY.set({ visible: false });
+      }
+    }
+
+    canvas.renderAll();
+  });
+
+  // Add this to hide guidelines when moving stops
+  canvas.on("object:modified", () => {
+    if (verticalLineX) verticalLineX.set({ visible: false });
+    if (horizontalLineY) horizontalLineY.set({ visible: false });
+    canvas.renderAll();
+  });
+
+  initializeCanvas();
 
   return {
     savePdf,
