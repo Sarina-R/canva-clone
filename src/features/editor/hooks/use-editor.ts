@@ -123,9 +123,11 @@ const buildEditor = ({
     }
   };
 
-  const height = canvas.height || 1200;
   const initializeGuideLines = () => {
-    verticalLineX = new fabric.Line([0, 0, 0, height], {
+    const extendedLength =
+      Math.max(canvas.height || 1200, canvas.width || 900) * 5;
+
+    verticalLineX = new fabric.Line([0, -extendedLength, 0, extendedLength], {
       stroke: "#2196f3",
       strokeWidth: 1,
       strokeDashArray: [5, 5],
@@ -135,8 +137,7 @@ const buildEditor = ({
       excludeFromExport: true,
     });
 
-    const width = canvas.width || 900;
-    horizontalLineY = new fabric.Line([0, 0, width, 0], {
+    horizontalLineY = new fabric.Line([-extendedLength, 0, extendedLength, 0], {
       stroke: "#2196f3",
       strokeWidth: 1,
       strokeDashArray: [5, 5],
@@ -949,7 +950,6 @@ const buildEditor = ({
     }
   });
 
-  // Add this event handler in buildEditor
   canvas.on("object:moving", (e) => {
     if (!e.target) return;
     const obj = e.target;
@@ -959,7 +959,6 @@ const buildEditor = ({
     const objCenter = obj.getCenterPoint();
     const workspaceCenter = workspace.getCenterPoint();
 
-    // Check for vertical center alignment
     if (Math.abs(objCenter.x - workspaceCenter.x) < snapThreshold) {
       obj.set({
         left: workspaceCenter.x - (obj.width! * obj.scaleX!) / 2,
@@ -973,12 +972,9 @@ const buildEditor = ({
         });
       }
     } else {
-      if (verticalLineX) {
-        verticalLineX.set({ visible: false });
-      }
+      hideGuideLines();
     }
 
-    // Check for horizontal center alignment
     if (Math.abs(objCenter.y - workspaceCenter.y) < snapThreshold) {
       obj.set({
         top: workspaceCenter.y - (obj.height! * obj.scaleY!) / 2,
@@ -992,20 +988,27 @@ const buildEditor = ({
         });
       }
     } else {
-      if (horizontalLineY) {
-        horizontalLineY.set({ visible: false });
-      }
+      hideGuideLines();
     }
 
     canvas.renderAll();
   });
 
-  // Add this to hide guidelines when moving stops
-  canvas.on("object:modified", () => {
-    if (verticalLineX) verticalLineX.set({ visible: false });
-    if (horizontalLineY) horizontalLineY.set({ visible: false });
-    canvas.renderAll();
-  });
+  // Add this new function to handle guide line hiding
+  const hideGuideLines = () => {
+    if (!verticalLineX || !horizontalLineY) return;
+
+    setTimeout(() => {
+      verticalLineX?.set({ visible: false });
+      horizontalLineY?.set({ visible: false });
+      canvas.renderAll();
+    }, 1000);
+  };
+
+  // Update other event listeners to use the new hide function
+  canvas.on("selection:cleared", hideGuideLines);
+  canvas.on("selection:updated", hideGuideLines);
+  canvas.on("object:modified", hideGuideLines);
 
   initializeCanvas();
 
