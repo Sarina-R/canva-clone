@@ -994,7 +994,6 @@ const buildEditor = ({
     canvas.renderAll();
   });
 
-  // Add this new function to handle guide line hiding
   const hideGuideLines = () => {
     if (!verticalLineX || !horizontalLineY) return;
 
@@ -1005,7 +1004,6 @@ const buildEditor = ({
     }, 1000);
   };
 
-  // Update other event listeners to use the new hide function
   canvas.on("selection:cleared", hideGuideLines);
   canvas.on("selection:updated", hideGuideLines);
   canvas.on("object:modified", hideGuideLines);
@@ -1474,11 +1472,9 @@ const buildEditor = ({
       const workspace = getWorkspace();
       if (!workspace) return;
 
-      // Get workspace boundaries
       const workspaceCenter = workspace.getCenterPoint();
 
       activeObjects.forEach((obj) => {
-        // Center the object at workspace center
         obj.setPositionByOrigin(
           new fabric.Point(workspaceCenter.x, workspaceCenter.y),
           "center",
