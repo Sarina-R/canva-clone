@@ -343,4 +343,7 @@ export interface Editor {
     scaleY: number | undefined;
   } | null;
   setBackgroundStateChangeListener: (callback: (state: any) => void) => void;
+  centerObjects: () => void;
+  centerObjectsHorizontally: () => void;
+  centerObjectsVertically: () => void;
 }
